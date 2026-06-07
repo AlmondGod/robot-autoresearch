@@ -56,14 +56,18 @@ def render_rollout(args: argparse.Namespace) -> None:
     action_horizon = int(checkpoint.get("action_horizon", 1))
     history = int(checkpoint.get("history", 1))
     n_embd = int(checkpoint.get("n_embd", 128))
+    policy_kind = str(checkpoint.get("policy_kind", "bc"))
+    flow_steps = int(checkpoint.get("flow_steps", 8))
     policy = TinyBCPolicy(
         action_dim=action_dim,
         proprio_dim=proprio_dim,
         n_embd=n_embd,
         action_horizon=action_horizon,
         max_history=max(history, 1),
+        policy_kind=policy_kind,
+        flow_steps=flow_steps,
     ).to(device)
-    policy.load_state_dict(checkpoint["state_dict"])
+    policy.load_state_dict(checkpoint["state_dict"], strict=False)
     policy.eval()
 
     manifest = json.loads(Path(args.manifest).read_text())
@@ -130,13 +134,28 @@ def _policy_action_chunk(
     proprio = (proprio - _ckpt_array(checkpoint, "proprio_mean")) / _ckpt_array(checkpoint, "proprio_std")
     instruction = tokenize_instruction(task_name)
     with torch.no_grad():
-        action_chunk, _ = policy(
-            torch.as_tensor(agent[None], dtype=torch.float32, device=device),
-            torch.as_tensor(proprio[None], dtype=torch.float32, device=device),
-            torch.as_tensor([task_id], dtype=torch.long, device=device),
-            wrist_images=torch.as_tensor(wrist[None], dtype=torch.float32, device=device),
-            instruction_tokens=torch.as_tensor(instruction[None], dtype=torch.long, device=device),
-        )
+        images = torch.as_tensor(agent[None], dtype=torch.float32, device=device)
+        proprio_t = torch.as_tensor(proprio[None], dtype=torch.float32, device=device)
+        task_t = torch.as_tensor([task_id], dtype=torch.long, device=device)
+        wrist_t = torch.as_tensor(wrist[None], dtype=torch.float32, device=device)
+        instruction_t = torch.as_tensor(instruction[None], dtype=torch.long, device=device)
+        if str(checkpoint.get("policy_kind", "bc")) == "flow":
+            action_chunk = policy.sample_flow(
+                images,
+                proprio_t,
+                task_t,
+                wrist_images=wrist_t,
+                instruction_tokens=instruction_t,
+                steps=int(checkpoint.get("flow_steps", 8)),
+            )
+        else:
+            action_chunk, _ = policy(
+                images,
+                proprio_t,
+                task_t,
+                wrist_images=wrist_t,
+                instruction_tokens=instruction_t,
+            )
     actions = action_chunk[0].cpu().numpy()
     actions = actions * _ckpt_array(checkpoint, "action_std") + _ckpt_array(checkpoint, "action_mean")
     return [np.asarray(action, dtype=np.float32) for action in actions]

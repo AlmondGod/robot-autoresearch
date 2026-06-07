@@ -11,9 +11,10 @@ import prepare
 
 
 # Autoresearch agents should edit this file, not prepare.py or eval/.
-METHOD = 'bc'
-CHANGE = 'BC wrist dropout'
-STRATEGY_KIND = 'bc'
+METHOD = 'flow_matching'
+CHANGE = 'Flow matching action policy with wrist dropout'
+STRATEGY_KIND = 'flow_matching'
+POLICY_KIND = 'flow'
 TRAIN_STEPS = 1_000_000
 BATCH_SIZE = 64
 LR = 0.0003
@@ -26,6 +27,8 @@ HISTORY_DROPOUT = 0.0
 WRIST_DROPOUT = 0.35
 WEIGHT_DECAY = 0.01
 GRAD_CLIP = 0.0
+FLOW_STEPS = 16
+FLOW_SIGMA = 1.0
 VIDEO_AUX = False
 TOKENIZER_CODEBOOK = 128
 TOKENIZER_EMBD = 64
@@ -60,6 +63,8 @@ def main() -> None:
             str(out_dir),
             "--method",
             METHOD,
+            "--policy-kind",
+            POLICY_KIND,
             "--steps",
             str(TRAIN_STEPS),
             "--batch-size",
@@ -84,6 +89,10 @@ def main() -> None:
             str(WEIGHT_DECAY),
             "--grad-clip",
             str(GRAD_CLIP),
+            "--flow-steps",
+            str(FLOW_STEPS),
+            "--flow-sigma",
+            str(FLOW_SIGMA),
             "--log-every",
             str(LOG_EVERY),
             "--device",

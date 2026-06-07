@@ -27,6 +27,7 @@ def main() -> None:
     parser.add_argument("--data", default="data/libero_object5/libero_object5_paired.npz")
     parser.add_argument("--out-dir", default="runs/libero/bc_policy")
     parser.add_argument("--method", default="bc")
+    parser.add_argument("--policy-kind", choices=["bc", "flow"], default="bc")
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=3e-4)
@@ -39,6 +40,8 @@ def main() -> None:
     parser.add_argument("--wrist-dropout", type=float, default=0.0)
     parser.add_argument("--weight-decay", type=float, default=0.01)
     parser.add_argument("--grad-clip", type=float, default=0.0)
+    parser.add_argument("--flow-steps", type=int, default=8)
+    parser.add_argument("--flow-sigma", type=float, default=1.0)
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--max-train-seconds", type=float, default=0.0)
     parser.add_argument("--device", default="auto")
@@ -59,6 +62,8 @@ def main() -> None:
         n_embd=args.n_embd,
         action_horizon=action_horizon,
         max_history=max(history, 1),
+        policy_kind=args.policy_kind,
+        flow_steps=args.flow_steps,
     ).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
@@ -78,14 +83,26 @@ def main() -> None:
             actions = actions + args.action_noise * torch.randn_like(actions)
         task_id = torch.as_tensor(train["task_id"][idx], dtype=torch.long, device=device)
         instruction_tokens = torch.as_tensor(train["instruction_tokens"][idx], dtype=torch.long, device=device)
-        pred, _ = model(
-            images,
-            proprio,
-            task_id,
-            wrist_images=wrist_images,
-            instruction_tokens=instruction_tokens,
-        )
-        loss = _chunk_loss(pred, actions, mode=args.loss, decay=args.chunk_decay)
+        if args.policy_kind == "flow":
+            loss = _flow_matching_loss(
+                model,
+                images,
+                proprio,
+                task_id,
+                wrist_images,
+                instruction_tokens,
+                actions,
+                sigma=args.flow_sigma,
+            )
+        else:
+            pred, _ = model(
+                images,
+                proprio,
+                task_id,
+                wrist_images=wrist_images,
+                instruction_tokens=instruction_tokens,
+            )
+            loss = _chunk_loss(pred, actions, mode=args.loss, decay=args.chunk_decay)
         opt.zero_grad()
         loss.backward()
         if args.grad_clip > 0:
@@ -107,14 +124,25 @@ def main() -> None:
         actions = _norm_tensor(val["actions"][:n], action_mean, action_std, device)
         task_id = torch.as_tensor(val["task_id"][:n], dtype=torch.long, device=device)
         instruction_tokens = torch.as_tensor(val["instruction_tokens"][:n], dtype=torch.long, device=device)
-        _, val_loss = model(
-            images,
-            proprio,
-            task_id,
-            wrist_images=wrist_images,
-            instruction_tokens=instruction_tokens,
-            actions=actions,
-        )
+        if args.policy_kind == "flow":
+            pred = model.sample_flow(
+                images,
+                proprio,
+                task_id,
+                wrist_images=wrist_images,
+                instruction_tokens=instruction_tokens,
+                steps=args.flow_steps,
+            )
+            val_loss = _chunk_loss(pred, actions, mode="mse", decay=1.0)
+        else:
+            _, val_loss = model(
+                images,
+                proprio,
+                task_id,
+                wrist_images=wrist_images,
+                instruction_tokens=instruction_tokens,
+                actions=actions,
+            )
 
     out_dir = Path(args.out_dir)
     ckpt = save_checkpoint(
@@ -127,6 +155,9 @@ def main() -> None:
             "action_horizon": action_horizon,
             "history": history,
             "n_embd": args.n_embd,
+            "policy_kind": args.policy_kind,
+            "flow_steps": args.flow_steps,
+            "flow_sigma": args.flow_sigma,
             "proprio_mean": proprio_mean,
             "proprio_std": proprio_std,
             "action_mean": action_mean,
@@ -141,6 +172,7 @@ def main() -> None:
             "checkpoint": str(ckpt),
             "device": str(device),
             "method": args.method,
+            "policy_kind": args.policy_kind,
             "n_embd": args.n_embd,
             "loss": args.loss,
             "chunk_decay": args.chunk_decay,
@@ -150,6 +182,8 @@ def main() -> None:
             "wrist_dropout": args.wrist_dropout,
             "weight_decay": args.weight_decay,
             "grad_clip": args.grad_clip,
+            "flow_steps": args.flow_steps,
+            "flow_sigma": args.flow_sigma,
             "steps": args.steps,
             "train_seconds": time.time() - started,
         },
@@ -169,6 +203,33 @@ def _chunk_loss(pred: torch.Tensor, actions: torch.Tensor, mode: str, decay: flo
         weights = weights / weights.mean().clamp_min(1e-6)
         per = per * weights.reshape(1, horizon, 1)
     return per.mean()
+
+
+def _flow_matching_loss(
+    model: TinyBCPolicy,
+    images: torch.Tensor,
+    proprio: torch.Tensor,
+    task_id: torch.Tensor,
+    wrist_images: torch.Tensor,
+    instruction_tokens: torch.Tensor,
+    actions: torch.Tensor,
+    sigma: float,
+) -> torch.Tensor:
+    actions = actions.unsqueeze(1) if actions.ndim == 2 else actions
+    noise = torch.randn_like(actions) * sigma
+    t = torch.rand((actions.shape[0],), dtype=actions.dtype, device=actions.device)
+    view_t = t.reshape(-1, 1, 1)
+    action_t = (1.0 - view_t) * noise + view_t * actions
+    target_velocity = actions - noise
+    obs_h = model.encode_obs(
+        images,
+        proprio,
+        task_id,
+        wrist_images=wrist_images,
+        instruction_tokens=instruction_tokens,
+    )
+    pred_velocity = model.flow_velocity(obs_h, action_t, t)
+    return torch.nn.functional.mse_loss(pred_velocity, target_velocity)
 
 
 def _augment_images(images: torch.Tensor, noise: float) -> torch.Tensor:

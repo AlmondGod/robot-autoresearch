@@ -20,6 +20,7 @@ BASE = {
     "METHOD": "bc",
     "CHANGE": "BC 256 baseline",
     "STRATEGY_KIND": "bc",
+    "POLICY_KIND": "bc",
     "BATCH_SIZE": 64,
     "LR": 3e-4,
     "N_EMBD": 256,
@@ -31,6 +32,8 @@ BASE = {
     "WRIST_DROPOUT": 0.0,
     "WEIGHT_DECAY": 0.01,
     "GRAD_CLIP": 0.0,
+    "FLOW_STEPS": 8,
+    "FLOW_SIGMA": 1.0,
     "VIDEO_AUX": False,
     "TOKENIZER_CODEBOOK": 128,
     "TOKENIZER_EMBD": 64,
@@ -171,6 +174,8 @@ def _strategies() -> list[dict]:
         ("Wider robust denoise BC", {"N_EMBD": 384, "LOSS": "huber", "ACTION_NOISE": 0.04, "GRAD_CLIP": 1.0}),
         ("Compact robust augmented BC", {"N_EMBD": 192, "LOSS": "huber", "IMAGE_NOISE": 0.02, "HISTORY_DROPOUT": 0.2}),
         ("Video inverse proxy full stack", {"VIDEO_AUX": True, "STRATEGY_KIND": "video_inverse_proxy", "TOKENIZER_CODEBOOK": 256, "WORLD_LAYERS": 6, "LOSS": "huber", "ACTION_NOISE": 0.04}),
+        ("Flow matching action policy", {"METHOD": "flow_matching", "STRATEGY_KIND": "flow_matching", "POLICY_KIND": "flow", "FLOW_STEPS": 16}),
+        ("Flow matching wrist dropout", {"METHOD": "flow_matching", "STRATEGY_KIND": "flow_matching", "POLICY_KIND": "flow", "FLOW_STEPS": 16, "WRIST_DROPOUT": 0.35}),
     ]
     strategies = []
     for change, updates in specs:

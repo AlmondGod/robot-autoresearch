@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -213,6 +214,9 @@ def main() -> None:
     opt = torch.optim.AdamW(model.parameters(), lr=float(args.lr), weight_decay=float(args.weight_decay))
     rng = np.random.default_rng(int(args.seed))
     history: list[dict] = []
+    best_val_loss = math.inf
+    best_step = 0
+    best_state: dict[str, torch.Tensor] | None = None
 
     for step in range(1, int(args.steps) + 1):
         idx = rng.integers(0, len(train_data), size=int(args.batch_size))
@@ -247,6 +251,10 @@ def main() -> None:
                 flow_steps=int(args.flow_steps),
             )
             history[-1]["val_loss"] = val_loss
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_step = step
+                best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
             print(f"step={step} temporal_chunk_loss={loss_value:.6f} val_loss={val_loss:.6f}", flush=True)
 
     val_loss = _eval_loss(
@@ -259,8 +267,7 @@ def main() -> None:
     )
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
+    checkpoint = {
             "state_dict": model.state_dict(),
             "policy_type": "robocasa_temporal_chunk_bc",
             "chunk_horizon": int(args.chunk_horizon),
@@ -279,11 +286,19 @@ def main() -> None:
             "proprio_std": proprio_std,
             "action_mean": action_mean,
             "action_std": action_std,
-        },
-        out_dir / "temporal_chunk.pt",
-    )
+        }
+    torch.save(checkpoint, out_dir / "temporal_chunk.pt")
+    best_checkpoint = dict(checkpoint)
+    if best_state is not None:
+        best_checkpoint["state_dict"] = best_state
+        best_checkpoint["best_step"] = int(best_step)
+        best_checkpoint["best_val_action_mse_normalized"] = float(best_val_loss)
+    torch.save(best_checkpoint, out_dir / "temporal_chunk_best.pt")
     metrics = {
         "checkpoint": str(out_dir / "temporal_chunk.pt"),
+        "best_checkpoint": str(out_dir / "temporal_chunk_best.pt"),
+        "best_step": int(best_step),
+        "best_val_action_mse_normalized": float(best_val_loss),
         "chunk_horizon": int(args.chunk_horizon),
         "frame_stride": int(args.frame_stride),
         "train_demos": int(args.train_demos_per_task),

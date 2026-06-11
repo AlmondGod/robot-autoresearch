@@ -10,12 +10,21 @@ import numpy as np
 
 
 LIBERO_ROOT = Path("third_party/LIBERO")
-DATA_DIR = Path("data/libero_object5")
+BENCHMARK_NAME = "libero_easy5"
+LIBERO_SUITE = "libero_goal"
+EASY_TASKS = [
+    "open_the_middle_drawer_of_the_cabinet",
+    "put_the_bowl_on_the_stove",
+    "put_the_wine_bottle_on_top_of_the_cabinet",
+    "open_the_top_drawer_and_put_the_bowl_inside",
+    "put_the_bowl_on_top_of_the_cabinet",
+]
+DATA_DIR = Path("data") / BENCHMARK_NAME
 MANIFEST = DATA_DIR / "manifest.json"
-VIDEO_SHARD = DATA_DIR / "libero_object5_video.npz"
-PAIRED_SHARD = DATA_DIR / "libero_object5_paired.npz"
+VIDEO_SHARD = DATA_DIR / f"{BENCHMARK_NAME}_video.npz"
+PAIRED_SHARD = DATA_DIR / f"{BENCHMARK_NAME}_paired.npz"
 TASK_COUNT = 5
-VIDEO_TASK_COUNT = 10
+VIDEO_TASK_COUNT = 5
 PAIRED_DEMOS_PER_TASK = 10
 VIDEO_REPEAT_FACTOR = 10
 IMAGE_SIZE = 64
@@ -37,7 +46,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.download:
-        _run(["python", "data/download_libero.py", "--dataset", "libero_object", "--use-huggingface"])
+        _run(["python", "data/download_libero.py", "--dataset", LIBERO_SUITE, "--use-huggingface"])
     if args.make_shards:
         _run(
             [
@@ -47,6 +56,8 @@ def main() -> None:
                 str(LIBERO_ROOT),
                 "--out-dir",
                 str(DATA_DIR),
+                "--suite",
+                LIBERO_SUITE,
                 "--task-count",
                 str(TASK_COUNT),
                 "--video-task-count",
@@ -55,6 +66,8 @@ def main() -> None:
                 str(PAIRED_DEMOS_PER_TASK),
                 "--video-repeat-factor",
                 str(VIDEO_REPEAT_FACTOR),
+                "--tasks",
+                *EASY_TASKS,
             ]
         )
         _run(
@@ -86,6 +99,8 @@ def main() -> None:
 def dataset_summary() -> dict:
     summary: dict = {
         "libero_root": str(LIBERO_ROOT),
+        "benchmark_name": BENCHMARK_NAME,
+        "libero_suite": LIBERO_SUITE,
         "data_dir": str(DATA_DIR),
         "train_time_seconds": TRAIN_TIME_SECONDS,
         "eval_episodes_per_task": EVAL_EPISODES_PER_TASK,

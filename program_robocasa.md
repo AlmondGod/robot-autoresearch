@@ -38,7 +38,7 @@ The initial 5 task aliases are:
 - `CloseDrawer`
 - `PickPlaceCounterToStove`
 - `TurnOffStove`
-- `PickPlaceObjectBetweenRegions`
+- `PickPlaceCounterToCabinet`
 
 If exact RoboCasa task ids differ locally, update the manifest generation step,
 not the evaluator or judge.
@@ -82,4 +82,3 @@ The right question is:
 ```text
 Can the learned evaluator choose policies that win under actual RoboCasa rollout?
 ```
-

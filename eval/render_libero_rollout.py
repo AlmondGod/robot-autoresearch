@@ -26,6 +26,7 @@ def main() -> None:
     parser.add_argument("--task-id", type=int, default=0)
     parser.add_argument("--episode-id", type=int, default=0)
     parser.add_argument("--max-steps", type=int, default=150)
+    parser.add_argument("--replan-every", type=int, default=0)
     parser.add_argument("--image-size", type=int, default=64)
     parser.add_argument("--fps", type=int, default=20)
     parser.add_argument("--device", default="cpu")
@@ -75,7 +76,8 @@ def render_rollout(args: argparse.Namespace) -> None:
     if args.task_id < 0 or args.task_id >= len(task_names):
         raise ValueError(f"task-id must be in [0, {len(task_names) - 1}]")
     task_name = task_names[args.task_id]
-    benchmark = get_benchmark("libero_object")(0)
+    suite = manifest.get("suite", "libero_object")
+    benchmark = get_benchmark(suite)(0)
     name_to_task_id = {task.name: idx for idx, task in enumerate(benchmark.tasks)}
     benchmark_task = benchmark.get_task(name_to_task_id[task_name])
     env_args = {
@@ -106,7 +108,7 @@ def render_rollout(args: argparse.Namespace) -> None:
         frames.append(_compose_frame(obs, task_name, 0, done, None))
         for step_idx in range(1, args.max_steps + 1):
             if not action_queue:
-                action_queue = _policy_action_chunk(policy, rollout, task_name, args.task_id, checkpoint, device)
+                action_queue = _policy_action_chunk(policy, rollout, task_name, args.task_id, checkpoint, device, args.replan_every)
             action = action_queue.pop(0)
             obs, reward, done, info = env.step(action)
             rollout.append(obs)
@@ -129,6 +131,7 @@ def _policy_action_chunk(
     task_id: int,
     checkpoint: dict,
     device: torch.device,
+    replan_every: int = 0,
 ) -> list[np.ndarray]:
     agent, wrist, proprio = rollout.arrays()
     proprio = (proprio - _ckpt_array(checkpoint, "proprio_mean")) / _ckpt_array(checkpoint, "proprio_std")
@@ -158,7 +161,10 @@ def _policy_action_chunk(
             )
     actions = action_chunk[0].cpu().numpy()
     actions = actions * _ckpt_array(checkpoint, "action_std") + _ckpt_array(checkpoint, "action_mean")
-    return [np.asarray(action, dtype=np.float32) for action in actions]
+    out = [np.asarray(action, dtype=np.float32) for action in actions]
+    if replan_every > 0:
+        out = out[:replan_every]
+    return out
 
 
 def _compose_frame(obs: dict, task_name: str, step_idx: int, done: bool, reward: float | None, info: dict | None = None) -> np.ndarray:

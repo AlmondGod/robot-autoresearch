@@ -7,13 +7,16 @@
     "CloseDrawer",
     "PickPlaceCounterToStove",
     "TurnOffStove",
-    "PickPlaceObjectBetweenRegions"
+    "PickPlaceCounterToCabinet"
   ],
   "policy": {
     "inputs": ["rgb_view_0", "rgb_view_1", "proprio", "task_id"],
     "model": "small_transformer_bc_or_diffusion_policy",
     "action_chunk": 16,
-    "demos_per_task": 50
+    "demos_per_task": 50,
+    "available_demos_per_task": 100,
+    "split": "pretrain",
+    "source": "human"
   },
   "learned_evaluator": {
     "latent_resolution": 64,
@@ -33,4 +36,3 @@
     "secondary": ["pearson_r", "top_k_hit_rate", "speedup_ratio"]
   }
 }
-

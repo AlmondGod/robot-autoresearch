@@ -50,6 +50,13 @@ Create the seed manifest:
 python data/make_robocasa5.py --out data/robocasa5/manifest.json
 ```
 
+Download the official RoboCasa datasets for those tasks:
+
+```bash
+python data/download_robocasa.py --manifest data/robocasa5/manifest.json --split pretrain --source human
+python data/make_robocasa5.py --out data/robocasa5/manifest.json --verify-exists
+```
+
 Analyze a learned-evaluator calibration archive:
 
 ```bash

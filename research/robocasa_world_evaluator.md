@@ -21,12 +21,17 @@ Use a 5-task RoboCasa seed benchmark:
 | 1 | `CloseDrawer` | articulated drawer closing |
 | 2 | `PickPlaceCounterToStove` | mug/object pick-place |
 | 3 | `TurnOffStove` | knob manipulation |
-| 4 | `PickPlaceObjectBetweenRegions` | region/container-style pick-place |
+| 4 | `PickPlaceCounterToCabinet` | region/container-style pick-place |
+
+This benchmark is built from the official RoboCasa dataset registry. By default
+it uses `split=pretrain` and `source=human`, because all five chosen tasks are
+available there and `CloseDrawer` does not expose a target-human release in the
+official registry snapshot used here.
 
 If a local RoboCasa installation exposes slightly different canonical names,
-`data/make_robocasa5.py` is the single place to map these aliases to exact task
-ids. The eval and judge code should consume the generated manifest, not hardcode
-task names.
+`data/make_robocasa5.py` is the single place to map aliases to exact task ids.
+The eval and judge code should consume the generated manifest, not hardcode task
+names.
 
 ## Policy Baseline
 
@@ -35,7 +40,7 @@ Policy v0 should be deliberately simple:
 - inputs: 2 RGB views, proprio, task language/id
 - model: diffusion policy or small transformer BC
 - output: action chunk, initially 8-16 actions
-- data: 50-500 demos per task
+- data: 50 policy demos per task from 100 available pretrain-human demos
 - metric: closed-loop RoboCasa success per task
 
 Target before using the evaluator in the loop:
@@ -137,4 +142,3 @@ kitchen tasks, uses a learned world model to cheaply rank policy variants, and
 only calls the simulator for finalists. The learned score correlates with real
 task success and speeds up evaluation.
 ```
-

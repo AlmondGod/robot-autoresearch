@@ -36,18 +36,19 @@ INSTRUCTION_VOCAB_SIZE = 512
 INSTRUCTION_LENGTH = 16
 
 
-def find_libero_object_dir(root: Path) -> Path:
+def find_libero_dataset_dir(root: Path, suite: str) -> Path:
     candidates = [
-        root / "datasets" / "libero_object",
-        root / "LIBERO" / "datasets" / "libero_object",
-        root / "libero_object",
+        root / "datasets" / suite,
+        root / "libero" / "datasets" / suite,
+        root / "LIBERO" / "datasets" / suite,
+        root / suite,
         root,
     ]
     for candidate in candidates:
         if candidate.exists() and list(candidate.glob("*.hdf5")):
             return candidate
     raise FileNotFoundError(
-        "Could not find LIBERO-Object HDF5 files. Expected one of: "
+        f"Could not find {suite} HDF5 files. Expected one of: "
         + ", ".join(str(p) for p in candidates)
     )
 
@@ -55,20 +56,32 @@ def find_libero_object_dir(root: Path) -> Path:
 def build_manifest(
     libero_root: Path,
     out_dir: Path,
+    suite: str = "libero_object",
     task_count: int = 5,
     video_task_count: int | None = None,
     paired_demos_per_task: int = 10,
     video_repeat_factor: int = 1,
     seed: int = 0,
+    task_names: list[str] | None = None,
 ) -> dict[str, Any]:
     h5py = _h5py()
-    dataset_dir = find_libero_object_dir(libero_root)
+    dataset_dir = find_libero_dataset_dir(libero_root, suite)
     video_task_count = task_count if video_task_count is None else video_task_count
-    files = sorted(dataset_dir.glob("*.hdf5"))[:video_task_count]
+    all_files = sorted(dataset_dir.glob("*.hdf5"))
+    if task_names:
+        by_name = {path.stem.removesuffix("_demo"): path for path in all_files}
+        missing = [name for name in task_names if name not in by_name]
+        if missing:
+            raise ValueError(f"missing {suite} task demos: {missing}")
+        files = [by_name[name] for name in task_names]
+        video_task_count = len(files)
+        task_count = min(task_count, len(files))
+    else:
+        files = all_files[:video_task_count]
     if len(files) < task_count:
-        raise ValueError(f"expected at least {task_count} LIBERO object task files in {dataset_dir}")
+        raise ValueError(f"expected at least {task_count} {suite} task files in {dataset_dir}")
     if len(files) < video_task_count:
-        raise ValueError(f"expected at least {video_task_count} LIBERO object task files in {dataset_dir}")
+        raise ValueError(f"expected at least {video_task_count} {suite} task files in {dataset_dir}")
 
     rng = np.random.default_rng(seed)
     refs: list[DemoRef] = []
@@ -121,7 +134,7 @@ def build_manifest(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "suite": "libero_object",
+        "suite": suite,
         "task_count": len(tasks),
         "video_task_count": len(files),
         "paired_demos_per_task": paired_demos_per_task,
@@ -185,8 +198,9 @@ def materialize_shards(
             )
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    video_path = out_dir / "libero_object5_video.npz"
-    paired_path = out_dir / "libero_object5_paired.npz"
+    prefix = manifest.get("name") or out_dir.name
+    video_path = out_dir / f"{prefix}_video.npz"
+    paired_path = out_dir / f"{prefix}_paired.npz"
     _save_transition_rows(video_path, rows, include_actions=False, repeat_factor=video_repeat_factor)
     _save_transition_rows(paired_path, paired_rows, include_actions=True)
     raw_video_demos = len(rows)

@@ -20,6 +20,7 @@ def main() -> None:
     parser.add_argument("--manifest", default="data/libero_object5/manifest.json")
     parser.add_argument("--episodes-per-task", type=int, default=5)
     parser.add_argument("--max-steps", type=int, default=300)
+    parser.add_argument("--replan-every", type=int, default=0)
     parser.add_argument("--image-size", type=int, default=64)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--out", default="")
@@ -64,8 +65,9 @@ def main() -> None:
     policy.eval()
 
     manifest = json.loads(Path(args.manifest).read_text())
+    suite = manifest.get("suite", "libero_object")
     task_names = [task["task_name"].removesuffix("_demo") for task in manifest["tasks"]]
-    benchmark = get_benchmark("libero_object")(0)
+    benchmark = get_benchmark(suite)(0)
     name_to_task_id = {task.name: idx for idx, task in enumerate(benchmark.tasks)}
 
     per_task = []
@@ -104,6 +106,7 @@ def main() -> None:
                             local_task_id,
                             checkpoint,
                             device,
+                            args.replan_every,
                         )
                     action = action_queue.pop(0)
                     obs, _reward, done, _info = env.step(action)
@@ -175,6 +178,7 @@ def _policy_action_chunk(
     task_id: int,
     checkpoint: dict,
     device: torch.device,
+    replan_every: int = 0,
 ) -> list[np.ndarray]:
     agent, wrist, proprio = rollout.arrays()
     proprio = (proprio - _ckpt_array(checkpoint, "proprio_mean")) / _ckpt_array(checkpoint, "proprio_std")
@@ -204,7 +208,10 @@ def _policy_action_chunk(
             )
     action_chunk_np = action_chunk[0].cpu().numpy()
     action_chunk_np = action_chunk_np * _ckpt_array(checkpoint, "action_std") + _ckpt_array(checkpoint, "action_mean")
-    return [np.asarray(action, dtype=np.float32) for action in action_chunk_np]
+    actions = [np.asarray(action, dtype=np.float32) for action in action_chunk_np]
+    if replan_every > 0:
+        actions = actions[:replan_every]
+    return actions
 
 
 def _proprio(obs: dict) -> np.ndarray:

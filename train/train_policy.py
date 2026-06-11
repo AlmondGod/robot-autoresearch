@@ -25,6 +25,8 @@ def _norm_tensor(values, mean: torch.Tensor, std: torch.Tensor, device: torch.de
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="data/libero_object5/libero_object5_paired.npz")
+    parser.add_argument("--aux-data", default="")
+    parser.add_argument("--aux-weight", type=float, default=0.0)
     parser.add_argument("--out-dir", default="runs/libero/bc_policy")
     parser.add_argument("--method", default="bc")
     parser.add_argument("--policy-kind", choices=["bc", "flow"], default="bc")
@@ -50,6 +52,7 @@ def main() -> None:
     device = device_from_arg(args.device)
     train = load_paired_npz(Path(args.data), split="train")
     val = load_paired_npz(Path(args.data), split="val")
+    aux_train = load_paired_npz(Path(args.aux_data), split="train") if args.aux_data else None
     action_dim = int(train["actions"].shape[-1])
     action_horizon = int(train["actions"].shape[1]) if train["actions"].ndim == 3 else 1
     proprio_dim = int(train["proprio"].shape[-1])
@@ -66,6 +69,11 @@ def main() -> None:
         flow_steps=args.flow_steps,
     ).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    aux_batches = (
+        batches(len(aux_train["frames"]), args.batch_size, args.steps, seed=1)
+        if aux_train is not None and args.aux_weight > 0
+        else None
+    )
 
     started = time.time()
     last_loss = None
@@ -83,26 +91,34 @@ def main() -> None:
             actions = actions + args.action_noise * torch.randn_like(actions)
         task_id = torch.as_tensor(train["task_id"][idx], dtype=torch.long, device=device)
         instruction_tokens = torch.as_tensor(train["instruction_tokens"][idx], dtype=torch.long, device=device)
-        if args.policy_kind == "flow":
-            loss = _flow_matching_loss(
+        loss = _policy_loss(
+            model,
+            args.policy_kind,
+            args.loss,
+            args.chunk_decay,
+            args.flow_sigma,
+            images,
+            proprio,
+            task_id,
+            wrist_images,
+            instruction_tokens,
+            actions,
+        )
+        if aux_train is not None and args.aux_weight > 0:
+            assert aux_batches is not None
+            aux_idx = next(aux_batches)
+            aux_loss = _batch_loss(
                 model,
-                images,
-                proprio,
-                task_id,
-                wrist_images,
-                instruction_tokens,
-                actions,
-                sigma=args.flow_sigma,
+                args,
+                aux_train,
+                aux_idx,
+                proprio_mean,
+                proprio_std,
+                action_mean,
+                action_std,
+                device,
             )
-        else:
-            pred, _ = model(
-                images,
-                proprio,
-                task_id,
-                wrist_images=wrist_images,
-                instruction_tokens=instruction_tokens,
-            )
-            loss = _chunk_loss(pred, actions, mode=args.loss, decay=args.chunk_decay)
+            loss = loss + args.aux_weight * aux_loss
         opt.zero_grad()
         loss.backward()
         if args.grad_clip > 0:
@@ -180,6 +196,8 @@ def main() -> None:
             "action_noise": args.action_noise,
             "history_dropout": args.history_dropout,
             "wrist_dropout": args.wrist_dropout,
+            "aux_data": args.aux_data,
+            "aux_weight": args.aux_weight,
             "weight_decay": args.weight_decay,
             "grad_clip": args.grad_clip,
             "flow_steps": args.flow_steps,
@@ -189,6 +207,79 @@ def main() -> None:
         },
     )
     print(out_dir / "metrics.json")
+
+
+def _batch_loss(
+    model: TinyBCPolicy,
+    args: argparse.Namespace,
+    data: dict,
+    idx,
+    proprio_mean: torch.Tensor,
+    proprio_std: torch.Tensor,
+    action_mean: torch.Tensor,
+    action_std: torch.Tensor,
+    device: torch.device,
+) -> torch.Tensor:
+    images = _augment_images(torch.as_tensor(data["frames"][idx], dtype=torch.float32, device=device), args.image_noise)
+    wrist_images = _augment_images(
+        torch.as_tensor(data.get("wrist_frames", data["frames"])[idx], dtype=torch.float32, device=device),
+        args.image_noise,
+    )
+    images = _drop_history(images, args.history_dropout)
+    wrist_images = images if _drop_now(args.wrist_dropout) else _drop_history(wrist_images, args.history_dropout)
+    proprio = _norm_tensor(data["proprio"][idx], proprio_mean, proprio_std, device)
+    actions = _norm_tensor(data["actions"][idx], action_mean, action_std, device)
+    if args.action_noise > 0:
+        actions = actions + args.action_noise * torch.randn_like(actions)
+    task_id = torch.as_tensor(data["task_id"][idx], dtype=torch.long, device=device)
+    instruction_tokens = torch.as_tensor(data["instruction_tokens"][idx], dtype=torch.long, device=device)
+    return _policy_loss(
+        model,
+        args.policy_kind,
+        args.loss,
+        args.chunk_decay,
+        args.flow_sigma,
+        images,
+        proprio,
+        task_id,
+        wrist_images,
+        instruction_tokens,
+        actions,
+    )
+
+
+def _policy_loss(
+    model: TinyBCPolicy,
+    policy_kind: str,
+    loss_mode: str,
+    chunk_decay: float,
+    flow_sigma: float,
+    images: torch.Tensor,
+    proprio: torch.Tensor,
+    task_id: torch.Tensor,
+    wrist_images: torch.Tensor,
+    instruction_tokens: torch.Tensor,
+    actions: torch.Tensor,
+) -> torch.Tensor:
+    if policy_kind == "flow":
+        return _flow_matching_loss(
+            model,
+            images,
+            proprio,
+            task_id,
+            wrist_images,
+            instruction_tokens,
+            actions,
+            sigma=flow_sigma,
+        )
+    pred, _ = model(
+        images,
+        proprio,
+        task_id,
+        wrist_images=wrist_images,
+        instruction_tokens=instruction_tokens,
+    )
+    return _chunk_loss(pred, actions, mode=loss_mode, decay=chunk_decay)
 
 
 def _chunk_loss(pred: torch.Tensor, actions: torch.Tensor, mode: str, decay: float) -> torch.Tensor:

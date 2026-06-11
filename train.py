@@ -12,7 +12,7 @@ import prepare
 
 # Autoresearch agents should edit this file, not prepare.py or eval/.
 METHOD = 'flow_matching'
-CHANGE = 'Flow matching action policy with wrist dropout'
+CHANGE = 'Flow matching action policy with wrist dropout on libero_easy5'
 STRATEGY_KIND = 'flow_matching'
 POLICY_KIND = 'flow'
 TRAIN_STEPS = 1_000_000
@@ -30,6 +30,9 @@ GRAD_CLIP = 0.0
 FLOW_STEPS = 16
 FLOW_SIGMA = 1.0
 VIDEO_AUX = False
+DREAMZERO = False
+DREAMZERO_AUX_WEIGHT = 0.25
+DREAMZERO_PSEUDO_SAMPLES = 1000
 TOKENIZER_CODEBOOK = 128
 TOKENIZER_EMBD = 64
 WORLD_LAYERS = 4
@@ -50,7 +53,13 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
     aux_metrics = {}
-    if VIDEO_AUX:
+    aux_data = ""
+    aux_weight = 0.0
+    if DREAMZERO:
+        aux_metrics = _run_dreamzero_aux(out_dir, args.max_train_seconds)
+        aux_data = str(out_dir / "pseudo" / "pseudo_paired.npz")
+        aux_weight = DREAMZERO_AUX_WEIGHT
+    elif VIDEO_AUX:
         aux_metrics = _run_video_aux(out_dir, args.max_train_seconds)
     remaining = max(1.0, args.max_train_seconds - (time.time() - started))
     _run(
@@ -59,6 +68,10 @@ def main() -> None:
             "train/train_policy.py",
             "--data",
             str(prepare.PAIRED_SHARD),
+            "--aux-data",
+            aux_data,
+            "--aux-weight",
+            str(aux_weight),
             "--out-dir",
             str(out_dir),
             "--method",
@@ -107,6 +120,8 @@ def main() -> None:
     metrics["commit"] = _git_commit()
     metrics["max_train_seconds"] = args.max_train_seconds
     metrics["strategy_kind"] = STRATEGY_KIND
+    metrics["dreamzero"] = DREAMZERO
+    metrics["dreamzero_aux_weight"] = aux_weight
     metrics.update(aux_metrics)
     if not args.skip_eval:
         success = prepare.eval_policy(out_dir / "policy.pt", out_dir / "libero_success.json")
@@ -185,6 +200,126 @@ def _run_video_aux(out_dir: Path, max_train_seconds: float) -> dict:
         "video_loss": tok_metrics.get("video_loss"),
         "tokenizer_loss": tok_metrics.get("tokenizer_loss"),
         "val_video_nll": world_metrics.get("val_video_nll"),
+    }
+
+
+def _run_dreamzero_aux(out_dir: Path, max_train_seconds: float) -> dict:
+    tok_dir = out_dir / "tokenizer"
+    world_dir = out_dir / "world_model"
+    inverse_dir = out_dir / "inverse"
+    pseudo_dir = out_dir / "pseudo"
+    tok_budget = max(1.0, 0.15 * max_train_seconds)
+    world_budget = max(1.0, 0.15 * max_train_seconds)
+    inverse_budget = max(1.0, 0.15 * max_train_seconds)
+    _run(
+        [
+            "python",
+            "train/train_tokenizer.py",
+            "--data",
+            str(prepare.VIDEO_SHARD),
+            "--out-dir",
+            str(tok_dir),
+            "--steps",
+            str(TRAIN_STEPS),
+            "--batch-size",
+            str(BATCH_SIZE),
+            "--codebook-size",
+            str(TOKENIZER_CODEBOOK),
+            "--embed-dim",
+            str(TOKENIZER_EMBD),
+            "--device",
+            DEVICE,
+            "--max-train-seconds",
+            str(tok_budget),
+            "--log-every",
+            str(LOG_EVERY),
+        ]
+    )
+    _run(
+        [
+            "python",
+            "train/train_world_model.py",
+            "--data",
+            str(prepare.VIDEO_SHARD),
+            "--tokenizer",
+            str(tok_dir / "tokenizer.pt"),
+            "--out-dir",
+            str(world_dir),
+            "--steps",
+            str(TRAIN_STEPS),
+            "--batch-size",
+            str(BATCH_SIZE),
+            "--layers",
+            str(WORLD_LAYERS),
+            "--heads",
+            str(WORLD_HEADS),
+            "--embd",
+            str(WORLD_EMBD),
+            "--device",
+            DEVICE,
+            "--max-train-seconds",
+            str(world_budget),
+            "--log-every",
+            str(LOG_EVERY),
+        ]
+    )
+    _run(
+        [
+            "python",
+            "train/train_inverse.py",
+            "--data",
+            str(prepare.PAIRED_SHARD),
+            "--tokenizer",
+            str(tok_dir / "tokenizer.pt"),
+            "--out-dir",
+            str(inverse_dir),
+            "--steps",
+            str(TRAIN_STEPS),
+            "--batch-size",
+            str(BATCH_SIZE),
+            "--device",
+            DEVICE,
+            "--max-train-seconds",
+            str(inverse_budget),
+            "--log-every",
+            str(LOG_EVERY),
+        ]
+    )
+    _run(
+        [
+            "python",
+            "train/train_dreamzero_pseudo.py",
+            "--video-data",
+            str(prepare.VIDEO_SHARD),
+            "--paired-data",
+            str(prepare.PAIRED_SHARD),
+            "--manifest",
+            str(prepare.DATA_DIR / "manifest.json"),
+            "--tokenizer",
+            str(tok_dir / "tokenizer.pt"),
+            "--inverse",
+            str(inverse_dir / "inverse.pt"),
+            "--out-dir",
+            str(pseudo_dir),
+            "--max-samples",
+            str(DREAMZERO_PSEUDO_SAMPLES),
+            "--batch-size",
+            str(BATCH_SIZE),
+            "--device",
+            DEVICE,
+        ]
+    )
+    tok_metrics = json.loads((tok_dir / "metrics.json").read_text())
+    world_metrics = json.loads((world_dir / "metrics.json").read_text())
+    inverse_metrics = json.loads((inverse_dir / "metrics.json").read_text())
+    pseudo_metrics = json.loads((pseudo_dir / "metrics.json").read_text())
+    return {
+        "video_loss": tok_metrics.get("video_loss"),
+        "tokenizer_loss": tok_metrics.get("tokenizer_loss"),
+        "val_video_nll": world_metrics.get("val_video_nll"),
+        "action_mse": inverse_metrics.get("action_mse"),
+        "pseudo_samples": pseudo_metrics.get("pseudo_samples"),
+        "pseudo_path": pseudo_metrics.get("pseudo_path"),
     }
 
 

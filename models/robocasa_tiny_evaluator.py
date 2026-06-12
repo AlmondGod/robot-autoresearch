@@ -116,6 +116,46 @@ class RoboCasaTinyEvaluator(nn.Module):
         }
 
 
+class RoboCasaLatentRGBDecoder(nn.Module):
+    """Decode TinyEvaluator latents back to both 64x64 RGB camera views."""
+
+    def __init__(
+        self,
+        *,
+        latent_dim: int,
+        task_count: int,
+        task_dim: int = 32,
+        width: int = 512,
+    ) -> None:
+        super().__init__()
+        self.latent_dim = int(latent_dim)
+        self.task = nn.Embedding(task_count, task_dim)
+        self.fc = nn.Sequential(
+            nn.Linear(latent_dim + task_dim, width),
+            nn.SiLU(),
+            nn.Linear(width, 256 * 4 * 4),
+            nn.SiLU(),
+        )
+        self.up = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 128),
+            nn.SiLU(),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 64),
+            nn.SiLU(),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 32),
+            nn.SiLU(),
+            nn.ConvTranspose2d(32, 6, 4, stride=2, padding=1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, latent: torch.Tensor, task_id: torch.Tensor) -> torch.Tensor:
+        h = torch.cat([latent, self.task(task_id)], dim=-1)
+        h = self.fc(h).reshape(latent.shape[0], 256, 4, 4)
+        return self.up(h)
+
+
 def tiny_evaluator_loss(
     outputs: dict[str, torch.Tensor],
     batch: dict[str, torch.Tensor],

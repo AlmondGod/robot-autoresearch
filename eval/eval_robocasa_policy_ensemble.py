@@ -23,6 +23,7 @@ def main() -> None:
     parser.add_argument("--commit-steps", type=int, default=16)
     parser.add_argument("--temporal-ensemble", action="store_true")
     parser.add_argument("--ensemble-decay", type=float, default=0.7)
+    parser.add_argument("--trace-dir", default="")
     parser.add_argument("--out", required=True)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
@@ -36,6 +37,9 @@ def main() -> None:
 
     details = []
     for episode_id in args.episode_id:
+        trace_path = None
+        if args.trace_dir:
+            trace_path = Path(args.trace_dir) / f"episode_{int(episode_id):06d}.npz"
         success, steps = _rollout(
             members=members,
             weights=weights,
@@ -46,8 +50,12 @@ def main() -> None:
             commit_steps=int(args.commit_steps),
             temporal_ensemble=bool(args.temporal_ensemble),
             ensemble_decay=float(args.ensemble_decay),
+            trace_path=trace_path,
         )
-        details.append({"episode_id": int(episode_id), "success": bool(success), "steps": int(steps)})
+        detail = {"episode_id": int(episode_id), "success": bool(success), "steps": int(steps)}
+        if trace_path is not None:
+            detail["trace_path"] = str(trace_path)
+        details.append(detail)
         print(json.dumps(details[-1]), flush=True)
 
     successes = sum(int(row["success"]) for row in details)
@@ -94,6 +102,7 @@ def _rollout(
     commit_steps: int,
     temporal_ensemble: bool,
     ensemble_decay: float,
+    trace_path: Path | None,
 ) -> tuple[bool, int]:
     import robocasa  # noqa: F401
     import robosuite
@@ -120,6 +129,8 @@ def _rollout(
     success = False
     step_idx = 0
     queued: dict[int, list[np.ndarray]] = {}
+    trace_actions: list[np.ndarray] = []
+    trace_success: list[bool] = []
     try:
         while step_idx < max_steps and not success:
             agent = _render64(env, "robot0_agentview_left")
@@ -165,9 +176,21 @@ def _rollout(
                         success = bool(env._check_success())
                     except Exception:
                         pass
+                trace_actions.append(action.astype(np.float32))
+                trace_success.append(bool(success))
                 if success or step_idx >= max_steps:
                     break
     finally:
+        if trace_path is not None:
+            trace_path.parent.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(
+                trace_path,
+                actions=np.stack(trace_actions).astype(np.float32) if trace_actions else np.zeros((0, 0), dtype=np.float32),
+                success=np.asarray(trace_success, dtype=np.bool_),
+                episode_id=np.asarray([episode_idx], dtype=np.int32),
+                steps=np.asarray([step_idx], dtype=np.int32),
+                final_success=np.asarray([success], dtype=np.bool_),
+            )
         try:
             env.close()
         except Exception:

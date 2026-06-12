@@ -31,6 +31,8 @@ def main() -> None:
     parser.add_argument("--imagined-rollouts", type=int, default=100)
     parser.add_argument("--imagined-steps", type=int, default=16)
     parser.add_argument("--action-noise", type=float, default=0.03)
+    parser.add_argument("--prefer-action-traces", action="store_true")
+    parser.add_argument("--invert-learned-score", action="store_true")
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
@@ -59,28 +61,49 @@ def main() -> None:
         sim_success = float(row.get("success_rate", row.get("score", 0.0)))
         weights = _row_weights(row, len(policies))
         try:
-            learned_score, learned_progress, seconds = _score_candidate(
-                evaluator=evaluator,
-                evaluator_ckpt=ckpt,
-                policy_paths=policies,
-                weights=weights,
-                dataset_root=dataset_root,
-                episode_ids=[int(ep) for ep in args.episode_id],
-                imagined_rollouts=int(args.imagined_rollouts),
-                imagined_steps=int(args.imagined_steps),
-                action_noise=float(args.action_noise),
-                device=device,
-            )
+            trace_paths = _trace_paths(row)
+            if args.prefer_action_traces and trace_paths:
+                learned_score, learned_progress, seconds = _score_trace_candidate(
+                    evaluator=evaluator,
+                    evaluator_ckpt=ckpt,
+                    dataset_root=dataset_root,
+                    trace_paths=trace_paths,
+                    imagined_rollouts=int(args.imagined_rollouts),
+                    imagined_steps=int(args.imagined_steps),
+                    action_noise=float(args.action_noise),
+                    device=device,
+                )
+                learned_mode = "action_trace"
+            else:
+                learned_score, learned_progress, seconds = _score_candidate(
+                    evaluator=evaluator,
+                    evaluator_ckpt=ckpt,
+                    policy_paths=policies,
+                    weights=weights,
+                    dataset_root=dataset_root,
+                    episode_ids=[int(ep) for ep in args.episode_id],
+                    imagined_rollouts=int(args.imagined_rollouts),
+                    imagined_steps=int(args.imagined_steps),
+                    action_noise=float(args.action_noise),
+                    device=device,
+                )
+                learned_mode = "initial_chunk"
+            raw_learned_score = learned_score
+            if args.invert_learned_score:
+                learned_score = 1.0 - learned_score
             out_row = {
                 "candidate_id": int(row.get("experiment", len(out_rows))),
                 "change": row.get("change"),
                 "learned_score": learned_score,
+                "raw_learned_score": raw_learned_score,
                 "learned_progress": learned_progress,
                 "sim_success": sim_success,
                 "sim_successes": row.get("successes"),
                 "sim_eval_rollouts": row.get("episodes"),
                 "learned_eval_rollouts": int(args.imagined_rollouts) * len(args.episode_id),
                 "learned_eval_seconds": seconds,
+                "learned_mode": learned_mode,
+                "learned_score_transform": "1-raw" if args.invert_learned_score else "raw",
                 "sim_eval_seconds": None,
             }
         except Exception as exc:
@@ -117,6 +140,29 @@ def _policy_paths(row: dict) -> list[str]:
     if not value:
         return []
     return [part for part in str(value).split(";") if part]
+
+
+def _trace_paths(row: dict) -> list[Path]:
+    paths = []
+    eval_path = row.get("eval_path")
+    if not eval_path:
+        return paths
+    payload_path = Path(eval_path)
+    if not payload_path.is_absolute():
+        payload_path = Path.cwd() / payload_path
+    if not payload_path.exists():
+        return paths
+    payload = json.loads(payload_path.read_text())
+    for detail in payload.get("details", []):
+        trace_path = detail.get("trace_path")
+        if not trace_path:
+            continue
+        path = Path(trace_path)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        if path.exists():
+            paths.append(path)
+    return paths
 
 
 def _row_weights(row: dict, n: int) -> np.ndarray:
@@ -169,6 +215,51 @@ def _score_candidate(
                 if action_noise > 0:
                     actions = actions + np.random.default_rng(episode_id * 1009 + step).normal(0.0, action_noise, size=actions.shape).astype(np.float32)
                 action_t = (torch.as_tensor(actions, dtype=torch.float32, device=device) - _tensor(evaluator_ckpt, "action_mean", device)) / _tensor(evaluator_ckpt, "action_std", device)
+                latent, _ = evaluator.step(latent, action_t, task_t)
+                progress, success_logit = evaluator.heads(latent, task_t)
+                episode_scores.append(torch.sigmoid(success_logit).detach().cpu().numpy())
+                episode_progress.append(torch.sigmoid(progress).detach().cpu().numpy())
+            scores.append(float(np.max(np.stack(episode_scores), axis=0).mean()))
+            progresses.append(float(np.max(np.stack(episode_progress), axis=0).mean()))
+    return float(np.mean(scores)), float(np.mean(progresses)), time.time() - start
+
+
+def _score_trace_candidate(
+    *,
+    evaluator: RoboCasaTinyEvaluator,
+    evaluator_ckpt: dict,
+    dataset_root: Path,
+    trace_paths: list[Path],
+    imagined_rollouts: int,
+    imagined_steps: int,
+    action_noise: float,
+    device: torch.device,
+) -> tuple[float, float, float]:
+    start = time.time()
+    scores: list[float] = []
+    progresses: list[float] = []
+    with torch.no_grad():
+        for trace_path in trace_paths:
+            trace = np.load(trace_path)
+            episode_id = int(trace["episode_id"][0])
+            actions = np.asarray(trace["actions"], dtype=np.float32)
+            if actions.size == 0:
+                continue
+            obs = _initial_obs(dataset_root, episode_id)
+            task_id = _evaluator_task_id(dataset_root, episode_id, evaluator_ckpt)
+            task_t = torch.full((imagined_rollouts,), task_id, dtype=torch.long, device=device)
+            agent = torch.as_tensor(np.repeat(obs["agent"][None], imagined_rollouts, axis=0), dtype=torch.float32, device=device).permute(0, 3, 1, 2)
+            wrist = torch.as_tensor(np.repeat(obs["wrist"][None], imagined_rollouts, axis=0), dtype=torch.float32, device=device).permute(0, 3, 1, 2)
+            proprio = (torch.as_tensor(np.repeat(obs["proprio"][None], imagined_rollouts, axis=0), dtype=torch.float32, device=device) - _tensor(evaluator_ckpt, "proprio_mean", device)) / _tensor(evaluator_ckpt, "proprio_std", device)
+            latent = evaluator.encode(agent, wrist, proprio, task_t)
+            episode_scores = []
+            episode_progress = []
+            limit = min(len(actions), max(1, int(imagined_steps)))
+            for step in range(limit):
+                action_batch = np.repeat(actions[step][None], imagined_rollouts, axis=0).astype(np.float32)
+                if action_noise > 0:
+                    action_batch = action_batch + np.random.default_rng(episode_id * 1009 + step).normal(0.0, action_noise, size=action_batch.shape).astype(np.float32)
+                action_t = (torch.as_tensor(action_batch, dtype=torch.float32, device=device) - _tensor(evaluator_ckpt, "action_mean", device)) / _tensor(evaluator_ckpt, "action_std", device)
                 latent, _ = evaluator.step(latent, action_t, task_t)
                 progress, success_logit = evaluator.heads(latent, task_t)
                 episode_scores.append(torch.sigmoid(success_logit).detach().cpu().numpy())

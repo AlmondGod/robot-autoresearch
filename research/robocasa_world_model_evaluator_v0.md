@@ -55,3 +55,24 @@ Next pass:
 - Record policy rollout action traces during real sim eval.
   - This lets the evaluator score full closed-loop action sequences, not just initial action chunks.
 - Validate correlation on a larger candidate set and across RoboCasa-5, not only OpenDrawer task-index 0.
+
+v0.1 trace-evaluator result:
+- Added action trace recording to `eval/eval_robocasa_policy_ensemble.py`.
+  - Each sim eval can now write one `.npz` per episode with executed actions and success flags.
+- Added trace scoring to `eval/eval_robocasa_tiny_evaluator_correlation.py`.
+  - `--prefer-action-traces` scores the actual executed action sequence instead of only the first predicted chunk.
+  - `--invert-learned-score` supports the observed calibration where the raw head acts like a failure/risk score on traces.
+- Re-evaluated experiments 29-38 with action traces:
+  - trace archive: `runs/robocasa/world_evaluator/trace_eval_frontier/archive_trace_frontier.jsonl`
+  - calibrated correlation plot: `runs/robocasa/world_evaluator/trace_eval_frontier/correlation_trace_calibrated.svg`
+- Trace-based calibrated evaluator:
+  - n: 10 candidates
+  - learned speed: ~243 imagined rollouts/sec at 260 imagined steps
+  - Pearson correlation with sim success: 0.995
+  - Spearman correlation: 0.931
+  - top-5 hit: 1.0
+
+Interpretation:
+- Full action traces fix the main v0 failure mode.
+- The tiny evaluator is now useful as a cheap pre-filter over candidate rollouts, as long as candidates provide planned/executed action traces.
+- This is still not a no-sim replacement for policy evaluation because the trace currently comes from sim eval. The next step is to score proposed policy action traces before full sim validation, then run RoboCasa only on top-ranked candidates.

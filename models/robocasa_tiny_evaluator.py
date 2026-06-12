@@ -156,6 +156,164 @@ class RoboCasaLatentRGBDecoder(nn.Module):
         return self.up(h)
 
 
+class RoboCasaVAEWorldModel(nn.Module):
+    """Reconstruction-trained latent world model with evaluator heads."""
+
+    def __init__(
+        self,
+        *,
+        proprio_dim: int,
+        action_dim: int,
+        task_count: int,
+        latent_dim: int = 128,
+        task_dim: int = 32,
+        width: int = 512,
+        dropout: float = 0.05,
+    ) -> None:
+        super().__init__()
+        self.proprio_dim = int(proprio_dim)
+        self.action_dim = int(action_dim)
+        self.task_count = int(task_count)
+        self.latent_dim = int(latent_dim)
+        self.image = nn.Sequential(
+            nn.Conv2d(6, 32, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 32),
+            nn.SiLU(),
+            nn.Conv2d(32, 64, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 64),
+            nn.SiLU(),
+            nn.Conv2d(64, 128, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 128),
+            nn.SiLU(),
+            nn.Conv2d(128, 192, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 192),
+            nn.SiLU(),
+            nn.Flatten(),
+            nn.Linear(192 * 4 * 4, width),
+            nn.SiLU(),
+        )
+        self.task = nn.Embedding(task_count, task_dim)
+        self.encoder = nn.Sequential(
+            nn.Linear(width + proprio_dim + task_dim, width),
+            nn.SiLU(),
+            nn.Dropout(dropout),
+        )
+        self.mu = nn.Linear(width, latent_dim)
+        self.logvar = nn.Linear(width, latent_dim)
+        self.decoder_fc = nn.Sequential(
+            nn.Linear(latent_dim + task_dim, width),
+            nn.SiLU(),
+            nn.Linear(width, 256 * 4 * 4),
+            nn.SiLU(),
+        )
+        self.decoder_up = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 128),
+            nn.SiLU(),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 64),
+            nn.SiLU(),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1),
+            nn.GroupNorm(8, 32),
+            nn.SiLU(),
+            nn.ConvTranspose2d(32, 6, 4, stride=2, padding=1),
+            nn.Sigmoid(),
+        )
+        self.dynamics = nn.Sequential(
+            nn.Linear(latent_dim + action_dim + task_dim, width),
+            nn.SiLU(),
+            nn.Dropout(dropout),
+            nn.Linear(width, width),
+            nn.SiLU(),
+            nn.Linear(width, latent_dim + proprio_dim),
+        )
+        self.progress_head = nn.Sequential(
+            nn.Linear(latent_dim + task_dim, width // 2),
+            nn.SiLU(),
+            nn.Linear(width // 2, 1),
+        )
+        self.success_head = nn.Sequential(
+            nn.Linear(latent_dim + task_dim, width // 2),
+            nn.SiLU(),
+            nn.Linear(width // 2, 1),
+        )
+
+    def encode_stats(
+        self,
+        agent: torch.Tensor,
+        wrist: torch.Tensor,
+        proprio: torch.Tensor,
+        task_id: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if agent.max() > 1.5:
+            agent = agent / 255.0
+        if wrist.max() > 1.5:
+            wrist = wrist / 255.0
+        image_feat = self.image(torch.cat([agent, wrist], dim=1))
+        h = self.encoder(torch.cat([image_feat, proprio, self.task(task_id)], dim=-1))
+        return self.mu(h), self.logvar(h).clamp(-8.0, 4.0)
+
+    def encode(
+        self,
+        agent: torch.Tensor,
+        wrist: torch.Tensor,
+        proprio: torch.Tensor,
+        task_id: torch.Tensor,
+    ) -> torch.Tensor:
+        mu, _ = self.encode_stats(agent, wrist, proprio, task_id)
+        return mu
+
+    def sample(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
+        if self.training:
+            return mu + torch.randn_like(mu) * torch.exp(0.5 * logvar)
+        return mu
+
+    def decode(self, latent: torch.Tensor, task_id: torch.Tensor) -> torch.Tensor:
+        h = torch.cat([latent, self.task(task_id)], dim=-1)
+        h = self.decoder_fc(h).reshape(latent.shape[0], 256, 4, 4)
+        return self.decoder_up(h)
+
+    def step(
+        self,
+        latent: torch.Tensor,
+        action: torch.Tensor,
+        task_id: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        out = self.dynamics(torch.cat([latent, action, self.task(task_id)], dim=-1))
+        delta_z, next_proprio = out[..., : self.latent_dim], out[..., self.latent_dim :]
+        next_latent = latent + 0.1 * torch.tanh(delta_z)
+        return next_latent, next_proprio
+
+    def heads(self, latent: torch.Tensor, task_id: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        h = torch.cat([latent, self.task(task_id)], dim=-1)
+        return self.progress_head(h).squeeze(-1), self.success_head(h).squeeze(-1)
+
+    def forward(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        mu, logvar = self.encode_stats(batch["agent"], batch["wrist"], batch["proprio"], batch["task_id"])
+        z = self.sample(mu, logvar)
+        next_mu, next_logvar = self.encode_stats(batch["next_agent"], batch["next_wrist"], batch["next_proprio"], batch["task_id"])
+        recon = self.decode(z, batch["task_id"])
+        next_recon = self.decode(next_mu, batch["task_id"])
+        z_next, proprio_next = self.step(z, batch["action"], batch["task_id"])
+        progress, success_logit = self.heads(z, batch["task_id"])
+        next_progress, next_success_logit = self.heads(z_next, batch["task_id"])
+        return {
+            "z": z,
+            "mu": mu,
+            "logvar": logvar,
+            "next_mu": next_mu.detach(),
+            "next_logvar": next_logvar.detach(),
+            "recon": recon,
+            "next_recon": next_recon,
+            "z_next": z_next,
+            "proprio_next": proprio_next,
+            "progress": progress,
+            "success_logit": success_logit,
+            "next_progress": next_progress,
+            "next_success_logit": next_success_logit,
+        }
+
+
 def tiny_evaluator_loss(
     outputs: dict[str, torch.Tensor],
     batch: dict[str, torch.Tensor],
@@ -185,3 +343,54 @@ def tiny_evaluator_loss(
         "success_loss": float(success_loss.detach().cpu()),
     }
     return loss, metrics
+
+
+def vae_world_model_loss(
+    outputs: dict[str, torch.Tensor],
+    batch: dict[str, torch.Tensor],
+    *,
+    recon_weight: float = 1.0,
+    kl_weight: float = 1e-4,
+    latent_weight: float = 1.0,
+    proprio_weight: float = 1.0,
+    progress_weight: float = 0.5,
+    success_weight: float = 0.5,
+) -> tuple[torch.Tensor, dict[str, float]]:
+    target = _rgb_target(batch["agent"], batch["wrist"])
+    next_target = _rgb_target(batch["next_agent"], batch["next_wrist"])
+    recon_loss = F.mse_loss(outputs["recon"], target) + 0.1 * F.l1_loss(outputs["recon"], target)
+    next_recon_loss = F.mse_loss(outputs["next_recon"], next_target) + 0.1 * F.l1_loss(outputs["next_recon"], next_target)
+    kl = -0.5 * (1 + outputs["logvar"] - outputs["mu"].square() - outputs["logvar"].exp()).mean()
+    latent_loss = F.mse_loss(outputs["z_next"], outputs["next_mu"])
+    proprio_loss = F.mse_loss(outputs["proprio_next"], batch["next_proprio"])
+    progress_loss = F.mse_loss(torch.sigmoid(outputs["progress"]), batch["progress"])
+    next_progress_loss = F.mse_loss(torch.sigmoid(outputs["next_progress"]), batch["next_progress"])
+    success_loss = F.binary_cross_entropy_with_logits(outputs["success_logit"], batch["success"])
+    next_success_loss = F.binary_cross_entropy_with_logits(outputs["next_success_logit"], batch["next_success"])
+    loss = (
+        recon_weight * 0.5 * (recon_loss + next_recon_loss)
+        + kl_weight * kl
+        + latent_weight * latent_loss
+        + proprio_weight * proprio_loss
+        + progress_weight * 0.5 * (progress_loss + next_progress_loss)
+        + success_weight * 0.5 * (success_loss + next_success_loss)
+    )
+    metrics = {
+        "loss": float(loss.detach().cpu()),
+        "recon_loss": float(recon_loss.detach().cpu()),
+        "next_recon_loss": float(next_recon_loss.detach().cpu()),
+        "kl": float(kl.detach().cpu()),
+        "latent_loss": float(latent_loss.detach().cpu()),
+        "proprio_loss": float(proprio_loss.detach().cpu()),
+        "progress_loss": float(progress_loss.detach().cpu()),
+        "success_loss": float(success_loss.detach().cpu()),
+    }
+    return loss, metrics
+
+
+def _rgb_target(agent: torch.Tensor, wrist: torch.Tensor) -> torch.Tensor:
+    if agent.max() > 1.5:
+        agent = agent / 255.0
+    if wrist.max() > 1.5:
+        wrist = wrist / 255.0
+    return torch.cat([agent, wrist], dim=1).clamp(0.0, 1.0)

@@ -76,3 +76,52 @@ Interpretation:
 - Full action traces fix the main v0 failure mode.
 - The tiny evaluator is now useful as a cheap pre-filter over candidate rollouts, as long as candidates provide planned/executed action traces.
 - This is still not a no-sim replacement for policy evaluation because the trace currently comes from sim eval. The next step is to score proposed policy action traces before full sim validation, then run RoboCasa only on top-ranked candidates.
+
+v0.2 VAE-latent visual world model:
+- Replaced the bolt-on latent-to-RGB decoder with a VAE-style visual latent model in `models/robocasa_tiny_evaluator.py`.
+  - Encoder: two RGB views, proprio, and task id -> Gaussian latent.
+  - Decoder: latent and task id -> reconstructed left-view and wrist/right-view RGB.
+  - Dynamics: latent, action, and task id -> next latent and next proprio.
+  - Heads: progress and success/risk prediction.
+- Added:
+  - `train/train_robocasa_vae_world_model.py`
+  - `train/train_robocasa_vae_trace_calibrator.py`
+  - `eval/render_robocasa_vae_rgb_rollout.py`
+- Base visual training:
+  - run: `runs/robocasa/world_evaluator/vae_opendrawer_task0_smoke`
+  - data: OpenDrawer task-index 0, 80 train demos, held-out episodes 87/92/93/94/98/100/101
+  - train samples: 957
+  - val samples: 158
+  - train time: 23.5 sec on local MPS/CPU-auto setup
+  - best val loss: 0.6006
+  - val RGB PSNR: 14.62 dB
+  - val RGB MSE: 0.0345
+  - progress MAE: 0.0529
+  - success-label accuracy: 0.962
+- Trace calibration:
+  - run: `runs/robocasa/world_evaluator/vae_opendrawer_task0_trace_calibrated_h260`
+  - initialized from the base VAE checkpoint
+  - frozen encoder and decoder, so reconstruction quality is preserved
+  - trained only dynamics/progress/success scoring on archived policy action traces
+  - rollout horizon: 260 steps
+  - best trace loss: 0.0316
+  - train time: 127.4 sec
+- Candidate ranking with calibrated VAE score:
+  - archive: `runs/robocasa/world_evaluator/trace_eval_frontier/archive_trace_frontier.jsonl`
+  - plot: `runs/robocasa/world_evaluator/vae_opendrawer_task0_trace_calibrated_h260/correlation_trace_calibrated.svg`
+  - n: 10 candidates
+  - raw success head behaves like a failure/risk score, so evaluation uses `--invert-learned-score`
+  - Pearson correlation with RoboCasa sim success: 0.9979
+  - Spearman correlation: 0.9309
+  - top-5 hit: 1.0
+  - best learned candidate id: 32
+  - best sim candidate id: 32
+- Decoded rollout:
+  - video: `runs/robocasa/world_evaluator/vae_opendrawer_task0_trace_calibrated_h260/vae_decoded_world_rollout_exp034_ep87.mp4`
+  - source trace final sim success: true
+
+Interpretation:
+- VAE latents improve reconstruction over the previous bolt-on decoder, but the decoded video is still blurry and not yet high-fidelity enough to be a strong visual simulator.
+- The same latent model can be trace-calibrated into a very strong candidate ranker on the current archive.
+- The correlation result is not a held-out claim yet: the trace archive used for calibration is also the archive used for the reported ranking measurement.
+- Next required step is a proper held-out candidate split: calibrate on one set of policy traces, then score unseen candidate traces before running RoboCasa sim validation.

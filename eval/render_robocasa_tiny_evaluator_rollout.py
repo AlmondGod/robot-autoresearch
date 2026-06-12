@@ -11,7 +11,7 @@ import torch
 from PIL import Image
 
 from eval.eval_world_model_ranking import _xml_escape
-from models.robocasa_tiny_evaluator import RoboCasaTinyEvaluator
+from models.robocasa_tiny_evaluator import RoboCasaTinyEvaluator, RoboCasaVAEWorldModel
 from train.common import device_from_arg
 
 
@@ -28,7 +28,8 @@ def main() -> None:
 
     device = device_from_arg(args.device)
     ckpt = torch.load(args.evaluator, map_location=device, weights_only=False)
-    model = RoboCasaTinyEvaluator(
+    cls = RoboCasaVAEWorldModel if ckpt.get("model_type") == "robocasa_vae_world_model" else RoboCasaTinyEvaluator
+    model = cls(
         proprio_dim=int(ckpt["proprio_dim"]),
         action_dim=int(ckpt["action_dim"]),
         task_count=int(ckpt["task_count"]),

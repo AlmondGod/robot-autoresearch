@@ -15,7 +15,7 @@ from eval.eval_robocasa_policy_ensemble import _load_member
 from eval.eval_world_model_ranking import compute_metrics
 from eval.eval_world_model_ranking import _write_svg as write_ranking_svg
 from eval.render_robocasa_chunk_policy import _ckpt_tensor, _episode_task_id
-from models.robocasa_tiny_evaluator import RoboCasaTinyEvaluator
+from models.robocasa_tiny_evaluator import RoboCasaTinyEvaluator, RoboCasaVAEWorldModel
 from train.common import device_from_arg
 
 
@@ -39,14 +39,7 @@ def main() -> None:
 
     device = device_from_arg(args.device)
     ckpt = torch.load(args.evaluator, map_location=device, weights_only=False)
-    evaluator = RoboCasaTinyEvaluator(
-        proprio_dim=int(ckpt["proprio_dim"]),
-        action_dim=int(ckpt["action_dim"]),
-        task_count=int(ckpt["task_count"]),
-        latent_dim=int(ckpt["latent_dim"]),
-        width=int(ckpt.get("width", 512)),
-        dropout=float(ckpt.get("dropout", 0.0)),
-    ).to(device)
+    evaluator = _load_evaluator(ckpt, device)
     evaluator.load_state_dict(ckpt["state_dict"])
     evaluator.eval()
 
@@ -133,6 +126,18 @@ def main() -> None:
 
 def _load_archive(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def _load_evaluator(checkpoint: dict, device: torch.device):
+    cls = RoboCasaVAEWorldModel if checkpoint.get("model_type") == "robocasa_vae_world_model" else RoboCasaTinyEvaluator
+    return cls(
+        proprio_dim=int(checkpoint["proprio_dim"]),
+        action_dim=int(checkpoint["action_dim"]),
+        task_count=int(checkpoint["task_count"]),
+        latent_dim=int(checkpoint["latent_dim"]),
+        width=int(checkpoint.get("width", 512)),
+        dropout=float(checkpoint.get("dropout", 0.0)),
+    ).to(device)
 
 
 def _policy_paths(row: dict) -> list[str]:

@@ -324,3 +324,29 @@ Interpretation:
 - Longer training lowered train loss and improved weighted validation loss until around step 1000, but visual PSNR peaked early and then decayed.
 - The current weighted objective is not aligned enough with visual reconstruction quality for long training.
 - Next visual-quality run should use PSNR/reconstruction-based checkpoint selection, higher reconstruction weight, or a staged objective: first train VAE reconstruction, then add dynamics/progress/success heads.
+
+v0.9 narrower holdout / more-training-data split:
+- Question:
+  - Is the 7-episode validation split too far out of distribution, and can we improve by moving most held-out episodes into training?
+- Run:
+  - `runs/robocasa/world_evaluator/vae_robocasa5_moretrain_holdout101_w512_z256`
+  - same model/config as v0.6:
+    - frame stride: 8
+    - latent_dim: 256
+    - width: 512
+  - validation: only episode 101 per task
+  - added to train: former held-out episodes 87/92/93/94/98/100 per task
+  - train samples: 14,688
+  - val samples: 121
+  - train time: 57.2 sec
+- Direct episode-101 comparison:
+  - v0.6 checkpoint trained with 7 held-out episodes: 15.97 dB on episode 101
+  - new holdout-101-only checkpoint: 15.60 dB on episode 101
+- Result:
+  - rejected.
+  - adding the nearby former validation episodes to train did not improve the remaining episode-101 holdout.
+
+Interpretation:
+- The validation issue is not solved by simply moving more local held-out episodes into training.
+- The stronger hypothesis is objective/checkpoint mismatch or insufficient visual decoder detail, not only validation distribution shift.
+- Next data-side improvement should use genuinely new demonstrations/tasks/views, not just reshuffling this same local 537-demo pool.

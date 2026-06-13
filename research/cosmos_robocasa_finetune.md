@@ -147,6 +147,28 @@ Update after access was granted:
   - local generated video: `runs/robocasa/cosmos25_lora/opendrawer_task0_rank4_smoke_eval/cosmos_lora_ep000000.mp4`
   - local side-by-side: `runs/robocasa/cosmos25_lora/opendrawer_task0_rank4_smoke_eval/reference_vs_cosmos_lora_ep000000.mp4`
 
+Real first pass:
+- Data:
+  - OpenDrawer only, `task_index=0`
+  - exported 44 available clips at 224x448 side-by-side left/right camera
+  - export dir on GPU: `/workspace/robot-autoresearch-cosmos/data/cosmos_robocasa_action/opendrawer_task0_cosmos_real50`
+- Training:
+  - base: `nvidia/Cosmos-Predict2.5-2B`, frozen
+  - adapter: rank-16 LoRA, alpha 16
+  - trainable params: about 0.02B
+  - batch size 1, 12 epochs, 528 optimizer steps
+  - LR: `1e-4`, warmup 50 steps, linear decay
+  - frame shape: 49 frames, 224x448
+  - wall time: about 16.5 minutes for the train loop after model load
+  - final step loss: 0.647
+  - final 25-step average loss: about 0.693
+  - adapter on GPU: `/workspace/robot-autoresearch-cosmos/runs/robocasa/cosmos25_lora/opendrawer_task0_rank16_real44_e12/adapter_model.safetensors`
+- Artifacts copied locally:
+  - loss curve: `runs/robocasa/cosmos25_lora/opendrawer_task0_rank16_real44_e12/loss_curve.png`
+  - train log: `runs/robocasa/cosmos25_lora/opendrawer_task0_rank16_real44_e12/train.log`
+  - generated video: `runs/robocasa/cosmos25_lora/opendrawer_task0_rank16_real44_e12_eval/cosmos_rank16_real_ep000000.mp4`
+  - side-by-side reference/generation: `runs/robocasa/cosmos25_lora/opendrawer_task0_rank16_real44_e12_eval/reference_vs_cosmos_rank16_real_ep000000.mp4`
+
 Expected resource shape:
 - Cosmos 2B is roughly 2B parameters.
 - Inference/post-training needs a large CUDA GPU; NVIDIA docs list tens of GB of VRAM for 2B Video2World.

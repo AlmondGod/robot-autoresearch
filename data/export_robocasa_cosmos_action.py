@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 from pathlib import Path
 
 import imageio.v3 as iio
@@ -21,18 +20,28 @@ def main() -> None:
     parser.add_argument("--views", nargs="+", default=["robot0_agentview_left", "robot0_agentview_right"])
     parser.add_argument("--layout", choices=["copy_first", "side_by_side"], default="side_by_side")
     parser.add_argument("--resize", type=int, default=320)
+    parser.add_argument("--resize-height", type=int, default=0)
+    parser.add_argument("--resize-width", type=int, default=0)
     parser.add_argument("--fps", type=int, default=20)
     parser.add_argument("--repo-root", default=".", help="Used to repair manifest paths when data is moved to a new machine.")
+    parser.add_argument(
+        "--action-format",
+        choices=["native12", "bridge7"],
+        default="native12",
+        help="Bridge7 writes 6D delta action plus binary gripper for official Cosmos action conditioning.",
+    )
     args = parser.parse_args()
 
     manifest = _filtered_manifest(Path(args.manifest), args.task_alias)
     out_dir = Path(args.out_dir)
     videos_dir = out_dir / "videos"
-    ann_dir = out_dir / "annotations"
+    ann_root = out_dir / "annotation"
     meta_dir = out_dir / "metas"
     videos_dir.mkdir(parents=True, exist_ok=True)
-    ann_dir.mkdir(parents=True, exist_ok=True)
+    for split in ("train", "val", "test"):
+        (ann_root / split).mkdir(parents=True, exist_ok=True)
     meta_dir.mkdir(parents=True, exist_ok=True)
+    target_size = _target_size(args)
 
     rows = []
     for task in manifest["tasks"]:
@@ -48,12 +57,30 @@ def main() -> None:
             if args.max_demos_per_task and kept >= int(args.max_demos_per_task):
                 break
             uid = f"{task['alias']}_taskidx{task_index}_ep{episode_idx:06d}"
+            split = _split_for_index(kept)
             video_out = videos_dir / f"{uid}.mp4"
-            ann_out = ann_dir / f"{uid}.json"
+            ann_out = ann_root / split / f"{uid}.json"
             meta_out = meta_dir / f"{uid}.txt"
             prompt = _prompt(task, task_index)
-            _write_video(dataset_root, episode_idx, args.views, video_out, layout=str(args.layout), resize=int(args.resize), fps=int(args.fps))
-            annotation = _annotation(frame, prompt=prompt, task=task, task_index=task_index, source_episode=episode_idx)
+            _write_video(
+                dataset_root,
+                episode_idx,
+                args.views,
+                video_out,
+                layout=str(args.layout),
+                size=target_size,
+                fps=int(args.fps),
+            )
+            annotation = _annotation(
+                frame,
+                prompt=prompt,
+                task=task,
+                task_index=task_index,
+                source_episode=episode_idx,
+                action_format=str(args.action_format),
+                video_path=str(video_out.relative_to(out_dir)),
+                split=split,
+            )
             ann_out.write_text(json.dumps(annotation, indent=2, sort_keys=True))
             meta_out.write_text(prompt + "\n")
             rows.append(
@@ -65,6 +92,7 @@ def main() -> None:
                     "video": str(video_out.relative_to(out_dir)),
                     "annotation": str(ann_out.relative_to(out_dir)),
                     "meta": str(meta_out.relative_to(out_dir)),
+                    "split": split,
                     "frames": len(frame),
                     "prompt": prompt,
                 }
@@ -80,8 +108,10 @@ def main() -> None:
         ],
         "views": args.views,
         "layout": args.layout,
-        "resize": int(args.resize),
+        "resize_height": int(target_size[0]),
+        "resize_width": int(target_size[1]),
         "fps": int(args.fps),
+        "action_format": str(args.action_format),
         "clips": len(rows),
         "rows": rows,
     }
@@ -128,6 +158,7 @@ def _write_metadata_csv(out_dir: Path, rows: list[dict]) -> None:
                 "task": row["task"],
                 "task_index": row["task_index"],
                 "episode_id": row["episode_id"],
+                "split": row["split"],
                 "frames": row["frames"],
             }
             for row in rows
@@ -135,23 +166,44 @@ def _write_metadata_csv(out_dir: Path, rows: list[dict]) -> None:
     ).to_csv(out_dir / "metadata.csv", index=False)
 
 
-def _annotation(frame: pd.DataFrame, *, prompt: str, task: dict, task_index: int, source_episode: int) -> dict:
+def _annotation(
+    frame: pd.DataFrame,
+    *,
+    prompt: str,
+    task: dict,
+    task_index: int,
+    source_episode: int,
+    action_format: str,
+    video_path: str,
+    split: str,
+) -> dict:
     state_full = np.stack(frame["observation.state"].to_numpy()).astype(float)
-    action = np.stack(frame["action"].to_numpy()).astype(float)
+    action_full = np.stack(frame["action"].to_numpy()).astype(float)
+    action = _format_action(action_full, action_format)
     gripper = _gripper_state(state_full, action)
     return {
         "prompt": prompt,
         "task": str(task["alias"]),
         "task_index": int(task_index),
         "source_episode": int(source_episode),
+        "split": split,
+        "episode_id": f"{task['alias']}_taskidx{task_index}_ep{source_episode:06d}",
+        "episode_metadata": {
+            "episode_id": f"{task['alias']}_taskidx{task_index}_ep{source_episode:06d}",
+            "segment_id": f"{task['alias']}_taskidx{task_index}_ep{source_episode:06d}",
+            "is_eval": split != "train",
+        },
+        "videos": [{"video_path": video_path}],
         "state": state_full[:, :6].tolist(),
         "state_full": state_full.tolist(),
         "continuous_gripper_state": gripper.tolist(),
         "action": action.tolist(),
+        "action_full": action_full.tolist(),
         "reward": frame["next.reward"].astype(float).tolist() if "next.reward" in frame else [],
         "done": frame["next.done"].astype(bool).tolist() if "next.done" in frame else [],
         "timestamp": frame["timestamp"].astype(float).tolist() if "timestamp" in frame else list(range(len(frame))),
         "action_dim": int(action.shape[-1]),
+        "action_full_dim": int(action_full.shape[-1]),
         "state_dim": int(state_full.shape[-1]),
     }
 
@@ -164,6 +216,36 @@ def _gripper_state(state: np.ndarray, action: np.ndarray) -> np.ndarray:
     return np.zeros((state.shape[0],), dtype=float)
 
 
+def _format_action(action: np.ndarray, action_format: str) -> np.ndarray:
+    if action_format == "native12":
+        return action
+    if action_format != "bridge7":
+        raise ValueError(f"unsupported action format: {action_format}")
+    if action.shape[-1] < 7:
+        raise ValueError(f"bridge7 requires at least 7 action dims, got {action.shape[-1]}")
+    out = np.zeros((action.shape[0], 7), dtype=float)
+    out[:, :6] = action[:, :6]
+    # Bridge convention is binary open=1, close=0. RoboCasa actions are usually
+    # continuous gripper commands, so threshold the native gripper dimension.
+    out[:, 6] = (action[:, -1] > 0).astype(float)
+    return out
+
+
+def _target_size(args: argparse.Namespace) -> tuple[int, int]:
+    height = int(args.resize_height) if args.resize_height else int(args.resize)
+    width = int(args.resize_width) if args.resize_width else int(args.resize)
+    return height, width
+
+
+def _split_for_index(index: int) -> str:
+    mod = index % 10
+    if mod == 8:
+        return "val"
+    if mod == 9:
+        return "test"
+    return "train"
+
+
 def _write_video(
     dataset_root: Path,
     episode_idx: int,
@@ -171,23 +253,23 @@ def _write_video(
     out: Path,
     *,
     layout: str,
-    resize: int,
+    size: tuple[int, int],
     fps: int,
 ) -> None:
-    if layout == "copy_first":
-        src = dataset_root / "videos" / "chunk-000" / f"observation.images.{views[0]}" / f"episode_{episode_idx:06d}.mp4"
-        shutil.copyfile(src, out)
-        return
     streams = [iio.imiter(dataset_root / "videos" / "chunk-000" / f"observation.images.{view}" / f"episode_{episode_idx:06d}.mp4") for view in views]
     frames = []
     for frame_tuple in zip(*streams, strict=False):
-        ims = [_resize(np.asarray(frame)[..., :3], resize) for frame in frame_tuple]
-        frames.append(np.concatenate(ims, axis=1))
+        if layout == "copy_first":
+            frames.append(_resize(np.asarray(frame_tuple[0])[..., :3], size))
+        else:
+            ims = [_resize(np.asarray(frame)[..., :3], size) for frame in frame_tuple]
+            frames.append(np.concatenate(ims, axis=1))
     iio.imwrite(out, frames, fps=fps, codec="libx264")
 
 
-def _resize(image: np.ndarray, size: int) -> np.ndarray:
-    return np.asarray(Image.fromarray(image.astype(np.uint8)).resize((size, size), Image.Resampling.BILINEAR), dtype=np.uint8)
+def _resize(image: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    height, width = size
+    return np.asarray(Image.fromarray(image.astype(np.uint8)).resize((width, height), Image.Resampling.BILINEAR), dtype=np.uint8)
 
 
 if __name__ == "__main__":

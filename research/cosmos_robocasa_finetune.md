@@ -179,3 +179,42 @@ First acceptance criteria:
 - Offline visual metrics: PSNR if paired references are available, plus motion/sharpness/nonblank scores.
 - Correlation: generated-video/value score should rank the known trace candidates similarly to real RoboCasa success.
 - Beat the tiny evaluator baseline only if correlation is positive on held-out candidate policies.
+
+Official action-conditioned path update:
+- The earlier generic Diffusers LoRA path was not the right recipe for robot action conditioning:
+  - it consumed `videos/*.mp4` and `metas/*.txt`
+  - it ignored our action annotation JSONs
+  - base and LoRA generations collapsed visually on the side-by-side RoboCasa format
+- Switched to the official `cosmos-predict2.5` action-conditioned trainer.
+- GPU setup:
+  - host: `root@216.81.245.138 -p 12909`
+  - GPU: A100-SXM4-80GB
+  - official repo: `/workspace/cosmos-predict2.5`
+  - env: `uv sync --extra=cu128` on Python 3.10 with `TMPDIR=/workspace/tmp`
+  - installed `torch==2.7.0+cu128`, `cosmos-predict2==1.5.0`
+- Data export:
+  - output: `/workspace/robot-autoresearch-cosmos/data/cosmos_robocasa_action/opendrawer_task0_action_bridge7_singlecam_256x320`
+  - 44 OpenDrawer `task_index=0` clips
+  - split: 36 train, 4 val, 4 test
+  - video: single `robot0_agentview_left` camera, 13-frame training chunks, 256x320
+  - action format: Bridge-style 7D action, from RoboCasa native action mapped to first 6 dims plus binary gripper
+  - official `Dataset_3D` loader check passed: 6,823 train samples, `video=(3, 13, 256, 320)`, `action=(12, 7)`
+- Official trainer smoke:
+  - command used `experiment=ac_reason_embeddings_rectified_flow_2b_256_320`
+  - required `~dataloader_train.dataloaders`
+  - `datasets/bridge` symlinked to the exported RoboCasa action dataset
+  - removed WandB callbacks with `~trainer.callbacks.wandb ~trainer.callbacks.wandb_10x`
+  - one iteration from scratch completed
+  - loss: `2.3442`
+  - peak GPU allocated: about 39.8 GB
+- Real official finetune:
+  - checkpoint init: public `robot/action-cond` UUID `38c6c645-7d41-4560-8eeb-6f4ddc0e6574`
+  - command used no validation and batch size 1
+  - trained 3 iterations successfully
+  - losses: `0.0862`, `0.1617`, `0.0838`
+  - peak GPU allocated: about 40.4 GB, NVML used about 44.5 GB
+  - output checkpoint: `/workspace/cosmos_outputs/cosmos_predict2_action_conditioned/cosmos_predict_v2p5/robocasa_actioncond_real3_nosave/checkpoints/iter_000000003`
+  - checkpoint directory size: about 20 GB
+- Space management:
+  - deleted `/workspace/ollama_models` to free about 33 GB
+  - remaining large dirs after cleanup: `/workspace/cosmos-predict2.5` about 19 GB, `/workspace/hf_home` about 20 GB, `/workspace/robot-autoresearch` about 19 GB

@@ -1,7 +1,7 @@
 [project]
 name = "robot-autoresearch"
 version = "0.1.0"
-description = "A LIBERO robotics autoresearch harness."
+description = "Robotics autoresearch harnesses and AutoroboBench utilities."
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24",
@@ -26,4 +26,4 @@ py-modules = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["data*", "models*", "train*", "eval*", "research*"]
+include = ["autorobobench*", "data*", "models*", "train*", "eval*", "research*"]

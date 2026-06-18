@@ -1,0 +1,42 @@
+{
+  "tracks": {
+    "robocasa_bc5": {
+      "hidden_final_success": 0.32,
+      "improvement_auc_over_budget": 0.22,
+      "robustness_generalization": 0.25,
+      "reproducibility_integrity": 1.0
+    },
+    "robocasa_long_horizon": {
+      "hidden_final_success": 0.10,
+      "subgoal_progress": 0.35,
+      "improvement_auc_over_budget": 0.12,
+      "reproducibility_integrity": 1.0
+    },
+    "world_model_evaluator": {
+      "wm_spearman": 0.72,
+      "checkpoint_ranking_accuracy": 0.80,
+      "wm_speedup_score": 0.60,
+      "calibration_score": 0.55,
+      "reproducibility_integrity": 1.0
+    },
+    "external_data_wall": {
+      "external_data_value": 0.00,
+      "heldout_no_regression": 1.0,
+      "data_budget_efficiency": 0.0,
+      "reproducibility_integrity": 1.0
+    },
+    "sim_rl_improvement": {
+      "success_auc_under_sim_budget": 0.25,
+      "hidden_final_success": 0.25,
+      "bc_retention": 1.0,
+      "reproducibility_integrity": 1.0
+    },
+    "transfer_robust_language": {
+      "hidden_robust_success": 0.15,
+      "language_paraphrase_success": 0.15,
+      "visual_shift_success": 0.15,
+      "object_layout_success": 0.15,
+      "reproducibility_integrity": 1.0
+    }
+  }
+}

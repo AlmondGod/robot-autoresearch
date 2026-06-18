@@ -1,0 +1,223 @@
+{
+  "version": "autorobobench-v0",
+  "total_points": 100,
+  "tracks": [
+    {
+      "id": "robocasa_bc5",
+      "name": "RoboCasa BC-5",
+      "phase": 1,
+      "weight": 15,
+      "primary_metric": "hidden_final_success",
+      "starter_metric": 0.25,
+      "reference_metric": 0.70,
+      "higher_is_better": true,
+      "score_weights": {
+        "hidden_final_success": 0.60,
+        "improvement_auc_over_budget": 0.20,
+        "robustness_generalization": 0.10,
+        "reproducibility_integrity": 0.10
+      },
+      "required_result_keys": [
+        "hidden_final_success",
+        "improvement_auc_over_budget",
+        "robustness_generalization",
+        "reproducibility_integrity"
+      ],
+      "allowed_edit_globs": [
+        "train.py",
+        "train/**",
+        "models/**",
+        "research/**",
+        "configs/robocasa*.json",
+        "program_autorobobench.md"
+      ],
+      "immutable_globs": [
+        "eval/**",
+        "data/make_robocasa5.py",
+        "data/robocasa5/manifest.json",
+        "configs/autorobobench_v0.json"
+      ],
+      "notes": "Improve a weak language/image/proprio BC policy on the five current RoboCasa seed tasks."
+    },
+    {
+      "id": "robocasa_long_horizon",
+      "name": "Long-Horizon RoboCasa",
+      "phase": 1,
+      "weight": 20,
+      "primary_metric": "hidden_final_success",
+      "starter_metric": 0.05,
+      "reference_metric": 0.55,
+      "higher_is_better": true,
+      "score_weights": {
+        "hidden_final_success": 0.55,
+        "subgoal_progress": 0.25,
+        "improvement_auc_over_budget": 0.10,
+        "reproducibility_integrity": 0.10
+      },
+      "required_result_keys": [
+        "hidden_final_success",
+        "subgoal_progress",
+        "improvement_auc_over_budget",
+        "reproducibility_integrity"
+      ],
+      "allowed_edit_globs": [
+        "train.py",
+        "train/**",
+        "models/**",
+        "research/**",
+        "configs/robocasa*.json",
+        "program_autorobobench.md"
+      ],
+      "immutable_globs": [
+        "eval/**",
+        "data/make_robocasa5.py",
+        "data/download_robocasa.py",
+        "configs/autorobobench_v0.json"
+      ],
+      "notes": "Compositional manipulation track; v0 can start with available long-horizon RoboCasa tasks or a held-out RoboCasa365 subset."
+    },
+    {
+      "id": "world_model_evaluator",
+      "name": "World Model Evaluator",
+      "phase": 1,
+      "weight": 20,
+      "primary_metric": "wm_spearman",
+      "starter_metric": 0.20,
+      "reference_metric": 0.90,
+      "higher_is_better": true,
+      "score_weights": {
+        "normalized_primary_progress": 0.40,
+        "checkpoint_ranking_accuracy": 0.20,
+        "wm_speedup_score": 0.20,
+        "calibration_score": 0.10,
+        "reproducibility_integrity": 0.10
+      },
+      "required_result_keys": [
+        "wm_spearman",
+        "checkpoint_ranking_accuracy",
+        "wm_speedup_score",
+        "calibration_score",
+        "reproducibility_integrity"
+      ],
+      "allowed_edit_globs": [
+        "train/train_robocasa_vae_world_model.py",
+        "train/train_robocasa_vae_trace_calibrator.py",
+        "models/robocasa_tiny_evaluator.py",
+        "eval/eval_robocasa_tiny_evaluator_correlation.py",
+        "research/robocasa_world_model_evaluator_v0.md",
+        "program_autorobobench.md"
+      ],
+      "immutable_globs": [
+        "runs/robocasa/world_evaluator/trace_eval_frontier/archive_trace_frontier.jsonl",
+        "eval/eval_world_model_ranking.py",
+        "configs/autorobobench_v0.json"
+      ],
+      "notes": "Score learned evaluator by policy-ranking correlation, ranking usefulness, calibration, and speedup over simulator."
+    },
+    {
+      "id": "external_data_wall",
+      "name": "External Data / Data Wall",
+      "phase": 2,
+      "weight": 15,
+      "primary_metric": "external_data_value",
+      "starter_metric": 0.00,
+      "reference_metric": 0.25,
+      "higher_is_better": true,
+      "score_weights": {
+        "normalized_primary_progress": 0.50,
+        "heldout_no_regression": 0.20,
+        "data_budget_efficiency": 0.20,
+        "reproducibility_integrity": 0.10
+      },
+      "required_result_keys": [
+        "external_data_value",
+        "heldout_no_regression",
+        "data_budget_efficiency",
+        "reproducibility_integrity"
+      ],
+      "allowed_edit_globs": [
+        "data/**",
+        "train/**",
+        "models/**",
+        "research/**",
+        "configs/**",
+        "program_autorobobench.md"
+      ],
+      "immutable_globs": [
+        "eval/**",
+        "configs/autorobobench_v0.json"
+      ],
+      "notes": "Use fixed OXE/DROID/Bridge/LeRobot-style cached corpora; live network stays disabled by default."
+    },
+    {
+      "id": "sim_rl_improvement",
+      "name": "Sim RL Improvement",
+      "phase": 3,
+      "weight": 15,
+      "primary_metric": "success_auc_under_sim_budget",
+      "starter_metric": 0.25,
+      "reference_metric": 0.70,
+      "higher_is_better": true,
+      "score_weights": {
+        "normalized_primary_progress": 0.45,
+        "hidden_final_success": 0.30,
+        "bc_retention": 0.15,
+        "reproducibility_integrity": 0.10
+      },
+      "required_result_keys": [
+        "success_auc_under_sim_budget",
+        "hidden_final_success",
+        "bc_retention",
+        "reproducibility_integrity"
+      ],
+      "allowed_edit_globs": [
+        "train/**",
+        "models/**",
+        "research/**",
+        "configs/**",
+        "program_autorobobench.md"
+      ],
+      "immutable_globs": [
+        "eval/**",
+        "configs/autorobobench_v0.json"
+      ],
+      "notes": "Improve BC with simulator access under a fixed online interaction budget."
+    },
+    {
+      "id": "transfer_robust_language",
+      "name": "Transfer / Robustness / Language",
+      "phase": 3,
+      "weight": 15,
+      "primary_metric": "hidden_robust_success",
+      "starter_metric": 0.15,
+      "reference_metric": 0.60,
+      "higher_is_better": true,
+      "score_weights": {
+        "hidden_robust_success": 0.50,
+        "language_paraphrase_success": 0.15,
+        "visual_shift_success": 0.15,
+        "object_layout_success": 0.10,
+        "reproducibility_integrity": 0.10
+      },
+      "required_result_keys": [
+        "hidden_robust_success",
+        "language_paraphrase_success",
+        "visual_shift_success",
+        "object_layout_success",
+        "reproducibility_integrity"
+      ],
+      "allowed_edit_globs": [
+        "train/**",
+        "models/**",
+        "research/**",
+        "configs/**",
+        "program_autorobobench.md"
+      ],
+      "immutable_globs": [
+        "eval/**",
+        "configs/autorobobench_v0.json"
+      ],
+      "notes": "Held-out objects, layouts, robot/task variants, and language paraphrases."
+    }
+  ]
+}

@@ -4,6 +4,35 @@ Offline-first robotics autoresearch. The current implementation is LIBERO-first,
 with a new RoboCasa-5 learned-evaluator track for testing whether fast learned
 world-model scores can replace most slow simulator rollouts during policy search.
 
+## AutoroboBench v0
+
+This repo now includes an AutoroboBench v0 scaffold:
+
+```text
+configs/autorobobench_v0.json
+docs/autorobobench_v0.md
+program_autorobobench.md
+autorobobench/
+```
+
+AutoroboBench scores robotics research loops, not just final robot skill. The
+v0 suite defines six tracks: RoboCasa BC-5, Long-Horizon RoboCasa, World Model
+Evaluator, External Data, Sim RL, and Transfer/Robustness/Language. Phase 1 is
+the launchable profile for the current repo: RoboCasa BC-5, Long-Horizon
+RoboCasa, and World Model Evaluator.
+
+Inspect and smoke-test the benchmark contract:
+
+```bash
+python -m autorobobench.cli describe --config configs/autorobobench_v0.json
+python -m autorobobench.cli score \
+  --config configs/autorobobench_v0.json \
+  --results examples/autorobobench_v0_results.json
+python -m autorobobench.cli hash-manifest \
+  --config configs/autorobobench_v0.json \
+  --out runs/autorobobench/v0_immutable_hashes.json
+```
+
 The active v0 question is:
 
 ```text

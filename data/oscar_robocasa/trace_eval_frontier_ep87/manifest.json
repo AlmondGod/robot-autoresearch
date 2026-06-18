@@ -1,0 +1,124 @@
+{
+  "rows": [
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_029",
+      "candidate_id": 29,
+      "change": "deep ensemble seed0+seed1 50/50 commit10 (closed-loop receding horizon)",
+      "episode": 87,
+      "episode_success": false,
+      "frames": 176,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 29, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.42857142857142855,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp029/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_030",
+      "candidate_id": 30,
+      "change": "deep ensemble seed0+seed1 50/50 commit12 (closed-loop receding horizon)",
+      "episode": 87,
+      "episode_success": false,
+      "frames": 176,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 30, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.42857142857142855,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp030/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_031",
+      "candidate_id": 31,
+      "change": "deep ensemble seed0+seed1 50/50 commit14 (closed-loop receding horizon)",
+      "episode": 87,
+      "episode_success": true,
+      "frames": 173,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 31, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.5714285714285714,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp031/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_032",
+      "candidate_id": 32,
+      "change": "deep ensemble seed0+seed1 50/50 commit20 (longer open-loop commit)",
+      "episode": 87,
+      "episode_success": true,
+      "frames": 171,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 32, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.7142857142857143,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp032/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_033",
+      "candidate_id": 33,
+      "change": "ACT-style temporal action ensemble seed0+seed1 commit1 decay0.7",
+      "episode": 87,
+      "episode_success": false,
+      "frames": 176,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 33, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.14285714285714285,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp033/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_034",
+      "candidate_id": 34,
+      "change": "ACT-style temporal action ensemble seed0+seed1 commit4 decay0.7",
+      "episode": 87,
+      "episode_success": true,
+      "frames": 176,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 34, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.7142857142857143,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp034/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_035",
+      "candidate_id": 35,
+      "change": "ACT-style temporal action ensemble seed0+seed1 commit8 decay0.7",
+      "episode": 87,
+      "episode_success": true,
+      "frames": 176,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 35, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.7142857142857143,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp035/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_036",
+      "candidate_id": 36,
+      "change": "ACT-style temporal action ensemble seed0+seed1 commit4 decay0.9",
+      "episode": 87,
+      "episode_success": true,
+      "frames": 176,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 36, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.7142857142857143,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp036/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_037",
+      "candidate_id": 37,
+      "change": "capacity-mixed deep ensemble seed0+seed1+width1024 weights 0.4/0.4/0.2 commit16",
+      "episode": 87,
+      "episode_success": true,
+      "frames": 171,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 37, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.7142857142857143,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp037/traces/episode_000087.npz"
+    },
+    {
+      "asset": "data/oscar_robocasa/trace_eval_frontier_ep87/candidate_038",
+      "candidate_id": 38,
+      "change": "heterogeneous ensemble seed0+seed1+flow weights 0.45/0.45/0.10 commit16",
+      "episode": 87,
+      "episode_success": false,
+      "frames": 176,
+      "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 38, held-out episode 87.",
+      "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+      "success_rate": 0.14285714285714285,
+      "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp038/traces/episode_000087.npz"
+    }
+  ]
+}

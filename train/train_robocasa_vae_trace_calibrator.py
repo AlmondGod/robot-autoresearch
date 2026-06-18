@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+import cv2
 from PIL import Image
 
 from models.robocasa_tiny_evaluator import RoboCasaVAEWorldModel
@@ -196,7 +197,15 @@ def _initial_obs(dataset_root: Path, episode_idx: int) -> dict:
 
 def _first_frame64(dataset_root: Path, episode_idx: int, view: str) -> np.ndarray:
     path = dataset_root / "videos" / "chunk-000" / f"observation.images.{view}" / f"episode_{episode_idx:06d}.mp4"
-    frame = next(iio.imiter(path))
+    try:
+        frame = next(iio.imiter(path))
+    except Exception:
+        cap = cv2.VideoCapture(str(path))
+        ok, frame_bgr = cap.read()
+        cap.release()
+        if not ok:
+            raise OSError(f"could not read first frame: {path}")
+        frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     image = np.asarray(frame, dtype=np.uint8)[..., :3]
     if image.shape[:2] != (64, 64):
         image = np.asarray(Image.fromarray(image).resize((64, 64), Image.Resampling.BILINEAR), dtype=np.uint8)

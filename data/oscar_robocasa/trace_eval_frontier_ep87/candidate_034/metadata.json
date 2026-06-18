@@ -1,0 +1,11 @@
+{
+  "candidate_id": 34,
+  "change": "ACT-style temporal action ensemble seed0+seed1 commit4 decay0.7",
+  "episode": 87,
+  "episode_success": true,
+  "frames": 176,
+  "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 34, held-out episode 87.",
+  "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+  "success_rate": 0.7142857142857143,
+  "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp034/traces/episode_000087.npz"
+}

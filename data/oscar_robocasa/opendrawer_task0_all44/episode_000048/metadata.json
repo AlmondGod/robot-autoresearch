@@ -1,0 +1,15 @@
+{
+  "conditioning_note": "gripper_scenario.mp4 is a proxy kinematic/action render derived from RoboCasa state/action arrays, not the official OSCAR skeleton renderer.",
+  "episode": 48,
+  "format": "oscar_asset_proxy_conditioning",
+  "fps": 15,
+  "frames": 242,
+  "height": 240,
+  "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. RoboCasa task_index=0.",
+  "source_episode": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/data/chunk-000/episode_000048.parquet",
+  "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000048.mp4",
+  "task_alias": "OpenDrawer",
+  "task_index": 0,
+  "view": "robot0_agentview_left",
+  "width": 320
+}

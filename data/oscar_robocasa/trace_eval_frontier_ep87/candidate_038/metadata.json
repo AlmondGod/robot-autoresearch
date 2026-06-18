@@ -1,0 +1,11 @@
+{
+  "candidate_id": 38,
+  "change": "heterogeneous ensemble seed0+seed1+flow weights 0.45/0.45/0.10 commit16",
+  "episode": 87,
+  "episode_success": false,
+  "frames": 176,
+  "prompt": "Robot manipulation in a RoboCasa kitchen. Task: Open a kitchen drawer. Candidate policy 38, held-out episode 87.",
+  "source_video": "/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot/videos/chunk-000/observation.images.robot0_agentview_left/episode_000087.mp4",
+  "success_rate": 0.14285714285714285,
+  "trace_path": "/Users/almondgod/robot-autoresearch/runs/robocasa/world_evaluator/trace_eval_frontier/exp038/traces/episode_000087.npz"
+}

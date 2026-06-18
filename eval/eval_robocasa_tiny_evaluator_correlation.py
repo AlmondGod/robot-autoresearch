@@ -9,12 +9,11 @@ import imageio.v3 as iio
 import numpy as np
 import pandas as pd
 import torch
+import cv2
 from PIL import Image
 
-from eval.eval_robocasa_policy_ensemble import _load_member
 from eval.eval_world_model_ranking import compute_metrics
 from eval.eval_world_model_ranking import _write_svg as write_ranking_svg
-from eval.render_robocasa_chunk_policy import _ckpt_tensor, _episode_task_id
 from models.robocasa_tiny_evaluator import RoboCasaTinyEvaluator, RoboCasaVAEWorldModel
 from train.common import device_from_arg
 
@@ -197,6 +196,8 @@ def _score_candidate(
     action_noise: float,
     device: torch.device,
 ) -> tuple[float, float, float]:
+    from eval.eval_robocasa_policy_ensemble import _load_member
+
     members = [_load_member(Path(path), device) for path in policy_paths]
     start = time.time()
     scores: list[float] = []
@@ -275,6 +276,8 @@ def _score_trace_candidate(
 
 
 def _policy_chunk(members, weights: np.ndarray, dataset_root: Path, episode_id: int, obs: dict, device: torch.device) -> np.ndarray:
+    from eval.render_robocasa_chunk_policy import _ckpt_tensor, _episode_task_id
+
     preds = []
     for model, checkpoint in members:
         action_mean = _ckpt_tensor(checkpoint, "action_mean", device)
@@ -312,7 +315,15 @@ def _initial_obs(dataset_root: Path, episode_idx: int) -> dict:
 
 def _first_frame64(dataset_root: Path, episode_idx: int, view: str) -> np.ndarray:
     path = dataset_root / "videos" / "chunk-000" / f"observation.images.{view}" / f"episode_{episode_idx:06d}.mp4"
-    frame = next(iio.imiter(path))
+    try:
+        frame = next(iio.imiter(path))
+    except Exception:
+        cap = cv2.VideoCapture(str(path))
+        ok, frame_bgr = cap.read()
+        cap.release()
+        if not ok:
+            raise OSError(f"could not read first frame: {path}")
+        frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     image = np.asarray(frame, dtype=np.uint8)[..., :3]
     if image.shape[:2] != (64, 64):
         image = np.asarray(Image.fromarray(image).resize((64, 64), Image.Resampling.BILINEAR), dtype=np.uint8)

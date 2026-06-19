@@ -489,3 +489,37 @@ Interpretation:
 - The stochastic flow sample is much worse than both the deterministic VAE transition and a zero-residual baseline on one-step latent MSE.
 - The cheap deterministic flow rollout saturates the VAE progress/success heads at 1.0 for every candidate, so it cannot rank policies.
 - Flow matching may still be useful, but not as an unconstrained high-variance residual sampler over this VAE latent. The next credible variant should predict bounded residuals or denoise in a normalized residual space, and it should be selected by held-out one-step latent MSE before full archive scoring.
+
+v0.14 mini video world-model benchmark baseline:
+- Goal:
+  - Provide a credible small baseline reminiscent of OSCAR/Cosmos-style video world models without requiring a giant pretrained generator.
+- Added:
+  - `models/robocasa_mini_video_world_model.py`
+  - `train/train_robocasa_mini_video_world_model.py`
+- Architecture:
+  - Two-view RGB encoder -> compact latent.
+  - Task/proprio-conditioned visual latent.
+  - Action-conditioned latent dynamics.
+  - RGB decoder for current reconstruction and predicted next-frame reconstruction.
+  - Next-proprio, progress, and success/risk heads.
+  - Supports `transformer` dynamics for architecture experiments and `mlp` dynamics for the default fast benchmark baseline.
+- Default benchmark baseline:
+  - checkpoint: `runs/robocasa/world_evaluator/mini_video_world_model_robocasa5_mlp_w512_z512_1000/mini_video_world_model_best.pt`
+  - data: RoboCasa-5, 80 train demos per task, held-out episodes 87/92/93/94/98/100/101.
+  - training: 1000 steps, batch 128, width 512, latent 512, frame stride 4.
+  - best checkpoint: step 800.
+  - train time: 156.2 sec.
+  - val next-frame PSNR: 15.25 dB at final step, best validation loss at step 800.
+- Scaled held-out archive result:
+
+| evaluator | readout | test Spearman | test Pearson | top-5 hit | speedup |
+|---|---|---:|---:|---:|---:|
+| mini video WM MLP w512 z512 | 1-raw | 0.784 | 0.904 | 1.0 | 100.9x |
+
+- Plot:
+  - `runs/autorobobench/world_model_evaluator/bc5_heldout_scaled/world_corr_mini_video_world_model_mlp_w512_z512_1000.svg`
+
+Interpretation:
+- This is now the practical benchmark baseline: it is visually grounded, action-conditioned, and fast enough to score many traces.
+- The earlier transformer-dynamics variant had similar offline visual quality but was too slow for the evaluator role when called one step at a time.
+- The VAE stride-4 model still has slightly higher rank correlation on this archive, but this baseline is structurally closer to modern video world-model evaluators because it trains on predicted next RGB, not only latent MSE plus reconstruction.

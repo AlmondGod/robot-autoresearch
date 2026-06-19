@@ -14,6 +14,7 @@ from PIL import Image
 
 from eval.eval_world_model_ranking import compute_metrics
 from eval.eval_world_model_ranking import _write_svg as write_ranking_svg
+from models.robocasa_mini_video_world_model import RoboCasaMiniVideoWorldModel
 from models.robocasa_tiny_evaluator import RoboCasaTinyEvaluator, RoboCasaVAEWorldModel
 from train.common import device_from_arg
 
@@ -128,7 +129,24 @@ def _load_archive(path: Path) -> list[dict]:
 
 
 def _load_evaluator(checkpoint: dict, device: torch.device):
-    cls = RoboCasaVAEWorldModel if checkpoint.get("model_type") == "robocasa_vae_world_model" else RoboCasaTinyEvaluator
+    model_type = checkpoint.get("model_type")
+    if model_type == "robocasa_vae_world_model":
+        cls = RoboCasaVAEWorldModel
+    elif model_type == "robocasa_mini_video_world_model":
+        return RoboCasaMiniVideoWorldModel(
+            proprio_dim=int(checkpoint["proprio_dim"]),
+            action_dim=int(checkpoint["action_dim"]),
+            task_count=int(checkpoint["task_count"]),
+            latent_dim=int(checkpoint["latent_dim"]),
+            width=int(checkpoint.get("width", 512)),
+            dropout=float(checkpoint.get("dropout", 0.0)),
+            transformer_layers=int(checkpoint.get("transformer_layers", 2)),
+            transformer_heads=int(checkpoint.get("transformer_heads", 4)),
+            residual_scale=float(checkpoint.get("residual_scale", 0.05)),
+            dynamics_kind=str(checkpoint.get("dynamics_kind", "transformer")),
+        ).to(device)
+    else:
+        cls = RoboCasaTinyEvaluator
     return cls(
         proprio_dim=int(checkpoint["proprio_dim"]),
         action_dim=int(checkpoint["action_dim"]),

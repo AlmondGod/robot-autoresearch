@@ -71,6 +71,7 @@
   "world_evaluators": [
     "runs/robocasa/world_evaluator/vae_robocasa5_all_scaled_w512_z256_5min/vae_world_model_best.pt",
     "runs/robocasa/world_evaluator/vae_robocasa5_stride4_w768_z512/vae_world_model_best.pt",
-    "runs/robocasa/world_evaluator/vae_robocasa5_stride8_w1024_z512/vae_world_model_best.pt"
+    "runs/robocasa/world_evaluator/vae_robocasa5_stride8_w1024_z512/vae_world_model_best.pt",
+    "runs/robocasa/world_evaluator/mini_video_world_model_robocasa5_mlp_w512_z512_1000/mini_video_world_model_best.pt"
   ]
 }

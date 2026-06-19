@@ -48,6 +48,20 @@ Metrics:
 | quick eval, commit 16 | 0/10 |
 | quick eval, commit 32 | 0/10 |
 
+5-minute follow-up:
+
+Run directory:
+
+`runs/autorobobench/robocasa_bc5_history_flow/histflow_h32_w256_s16_5min_seed0`
+
+| metric | value |
+| --- | ---: |
+| optimizer steps | 1793 |
+| train seconds | 304.3 |
+| best val action MSE | 0.3106 |
+| quick eval, commit 16 | 0/10 |
+| quick eval, commit 32 | 0/10 |
+
 Quick eval means first two frozen eval episodes for each of the five BC-5 tasks, `max_steps=260`.
 
 ## Interpretation
@@ -63,6 +77,8 @@ History-flow result:
 
 - best val action MSE: 0.3597
 - quick eval: 0/10 at both commit 16 and commit 32
+
+The 5-minute run improved the flow decoder offline from `0.3597` to `0.3106`, but still produced `0/10` quick-eval success at both commit settings. More flow training helped imitation loss but did not recover closed-loop control.
 
 The flow decoder regressed the only task history-ACT solved on this quick slice (`CloseDrawer`: 2/2 -> 0/2). Under the same short training budget, the flow decoder appears harder to optimize than the direct ACT-style action decoder.
 

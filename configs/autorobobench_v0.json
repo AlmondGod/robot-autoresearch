@@ -108,6 +108,7 @@
         "tasks/world_model_evaluator/train.py",
         "train/train_robocasa_vae_world_model.py",
         "train/train_robocasa_vae_trace_calibrator.py",
+        "train/train_robocasa_mixed_trace_calibrator.py",
         "train/train_robocasa_tiny_evaluator.py",
         "models/robocasa_tiny_evaluator.py",
         "research/robocasa_world_model_evaluator_v0.md",

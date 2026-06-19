@@ -373,3 +373,31 @@ v0.10 held-out BC-5 policy correlation smoke:
 - Important caveat:
   - This is a smoke benchmark, not final evidence. The test split has only 3 policy candidates and 10 eval episodes/candidate.
   - Next step is scale to at least 10-20 held-out policies and 10 eval episodes/task before making claims.
+
+v0.11 RoboCasa-only evaluator baselines:
+- Question:
+  - If we drop DROID/external video and use only RoboCasa data, what are reasonable world-model evaluator baselines and held-out correlation scores?
+- Archive:
+  - `runs/autorobobench/world_model_evaluator/bc5_heldout_traces/archive_bc5_heldout.jsonl`
+  - 5 tasks, 4 total candidate policies, 3 held-out test policies.
+  - Test sim success rates: 0.0, 0.1, 0.2.
+- Baselines:
+
+| evaluator | training | readout | test Spearman | test Pearson | speedup |
+|---|---:|---|---:|---:|---:|
+| VAE w512 z256 500-step | RoboCasa-5 VAE | 1-raw | 0.000 | 0.000 | 22.0x |
+| VAE w512 z256 5-min | RoboCasa-5 VAE | 1-raw | 1.000 | 0.899 | 22.3x |
+| VAE w768 z512 stride4 | RoboCasa-5 VAE | raw | -0.500 | -0.736 | 18.8x |
+| VAE w768 z512 stride4 | RoboCasa-5 VAE | 1-raw | 0.500 | 0.736 | 20.4x |
+| VAE w1024 z512 stride8 | RoboCasa-5 VAE | 1-raw | 0.500 | 0.000 | 19.8x |
+| mixed trace calibrated w512 z256 | train split traces only | 1-raw | 1.000 | 0.875 | 22.1x |
+
+- New trainer:
+  - `train/train_robocasa_mixed_trace_calibrator.py`
+  - trains on `split=train` / `split=calibration` traces only.
+  - supports mixed task aliases by reading dataset roots from `data/robocasa5/manifest.json`.
+- Best current RoboCasa-only baseline:
+  - `runs/robocasa/world_evaluator/vae_robocasa5_all_scaled_w512_z256_5min/vae_world_model_best.pt`
+  - test Spearman 1.000, Pearson 0.899 on the current small held-out split.
+- Caveat:
+  - The split is still too small. This gives us a good implementation baseline, not yet a robust scientific result.

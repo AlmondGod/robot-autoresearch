@@ -20,7 +20,7 @@ from train.common import device_from_arg
 
 ensure_robocasa_runtime()
 
-from models.robocasa_sequence_flow import RoboCasaHistoryACTPolicy, RoboCasaSequenceFlowPolicy  # noqa: E402
+from models.robocasa_sequence_flow import RoboCasaHistoryACTPolicy, RoboCasaHistoryFlowPolicy, RoboCasaSequenceFlowPolicy  # noqa: E402
 from eval.train_temporal_chunk_bc_robocasa import RoboCasaTemporalChunkBC  # noqa: E402
 
 
@@ -110,6 +110,30 @@ def load_policy(checkpoint: str, device: str = "auto") -> Policy:
             proprio_std=_tensor(payload, "proprio_std", torch_device),
             mode="history_act",
         )
+    if payload.get("policy_type") == "autorobobench_robocasa_bc5_history_flow":
+        model = RoboCasaHistoryFlowPolicy(
+            proprio_dim=int(payload["proprio_dim"]),
+            chunk_horizon=int(payload["chunk_horizon"]),
+            action_dim=int(payload["action_dim"]),
+            task_count=int(payload["task_count"]),
+            width=int(payload.get("width", 256)),
+            depth=int(payload.get("transformer_depth", 3)),
+            action_depth=int(payload.get("action_depth", 3)),
+            heads=int(payload.get("heads", 4)),
+            dropout=float(payload.get("dropout", 0.0)),
+        ).to(torch_device)
+        model.load_state_dict(payload["state_dict"])
+        model.eval()
+        return Policy(
+            model=model,
+            checkpoint=payload,
+            device=torch_device,
+            action_mean=_tensor(payload, "action_mean", torch_device),
+            action_std=_tensor(payload, "action_std", torch_device),
+            proprio_mean=_tensor(payload, "proprio_mean", torch_device),
+            proprio_std=_tensor(payload, "proprio_std", torch_device),
+            mode="history_flow",
+        )
     model = RoboCasaTemporalChunkBC(
         proprio_dim=int(payload["proprio_dim"]),
         chunk_horizon=int(payload["chunk_horizon"]),
@@ -143,7 +167,7 @@ def act(policy: Policy, obs: dict, task: dict) -> np.ndarray:
         raise ValueError(f"task_id={task_id} outside loaded policy task_count={policy.checkpoint['task_count']}")
     if policy.mode == "trajectory_bank":
         return _act_trajectory_bank(policy, obs, task_id)
-    if policy.mode == "history_act":
+    if policy.mode in {"history_act", "history_flow"}:
         return _act_history(policy, obs, task_id)
 
     with torch.no_grad():
@@ -205,15 +229,28 @@ def _act_history(policy: Policy, obs: dict, task_id: int) -> np.ndarray:
         prev_proprio_t = (prev_proprio_t - policy.proprio_mean) / policy.proprio_std
         proprio_t = (proprio_t - policy.proprio_mean) / policy.proprio_std
         task_t = torch.as_tensor([task_id], dtype=torch.long, device=device)
-        pred_norm = policy.model(
-            prev_agent_t,
-            prev_wrist_t,
-            agent_t,
-            wrist_t,
-            prev_proprio_t,
-            proprio_t,
-            task_t,
-        )[0]
+        if policy.mode == "history_flow":
+            pred_norm = policy.model.sample_flow(
+                prev_agent_t,
+                prev_wrist_t,
+                agent_t,
+                wrist_t,
+                prev_proprio_t,
+                proprio_t,
+                task_t,
+                steps=int(policy.checkpoint.get("flow_steps", 8)),
+                start=str(policy.checkpoint.get("flow_eval_start", "bc")),
+            )[0]
+        else:
+            pred_norm = policy.model(
+                prev_agent_t,
+                prev_wrist_t,
+                agent_t,
+                wrist_t,
+                prev_proprio_t,
+                proprio_t,
+                task_t,
+            )[0]
         pred = pred_norm * policy.action_std + policy.action_mean
 
     policy.prev_agent = agent

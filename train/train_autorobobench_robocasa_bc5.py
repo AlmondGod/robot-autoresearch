@@ -11,7 +11,7 @@ import torch
 from torch import nn
 
 from autorobobench.robocasa_runtime import ensure_robocasa_runtime
-from models.robocasa_sequence_flow import RoboCasaHistoryACTPolicy, RoboCasaSequenceFlowPolicy
+from models.robocasa_sequence_flow import RoboCasaHistoryACTPolicy, RoboCasaHistoryFlowPolicy, RoboCasaSequenceFlowPolicy
 from train.common import device_from_arg
 
 
@@ -53,7 +53,7 @@ def main() -> None:
     parser.add_argument("--image-noise", type=float, default=0.01)
     parser.add_argument("--proprio-noise", type=float, default=0.01)
     parser.add_argument("--action-smooth", type=float, default=0.001)
-    parser.add_argument("--policy-kind", choices=["bc", "flow", "sequence_flow", "history_act"], default="bc")
+    parser.add_argument("--policy-kind", choices=["bc", "flow", "sequence_flow", "history_act", "history_flow"], default="bc")
     parser.add_argument("--flow-steps", type=int, default=8)
     parser.add_argument("--flow-sigma", type=float, default=1.0)
     parser.add_argument("--flow-source", choices=["noise", "bc"], default="noise")
@@ -91,13 +91,25 @@ def main() -> None:
     val_data.proprio = ((val_data.proprio - proprio_mean) / proprio_std).astype(np.float32)
     train_data.actions = ((train_data.actions - action_mean) / action_std).astype(np.float32)
     val_data.actions = ((val_data.actions - action_mean) / action_std).astype(np.float32)
-    if args.policy_kind == "history_act":
+    if args.policy_kind in {"history_act", "history_flow"}:
         _attach_history(train_data, int(args.history_stride))
         _attach_history(val_data, int(args.history_stride))
 
     device = device_from_arg(args.device)
     task_count = max(1, int(max(train_data.task_id.max(initial=0), val_data.task_id.max(initial=0)) + 1))
-    if args.policy_kind == "history_act":
+    if args.policy_kind == "history_flow":
+        model = RoboCasaHistoryFlowPolicy(
+            proprio_dim=int(train_data.proprio.shape[-1]),
+            chunk_horizon=int(args.chunk_horizon),
+            action_dim=int(train_data.actions.shape[-1]),
+            task_count=task_count,
+            width=int(args.width),
+            depth=int(args.transformer_depth),
+            action_depth=int(args.action_depth),
+            heads=int(args.heads),
+            dropout=float(args.dropout),
+        ).to(device)
+    elif args.policy_kind == "history_act":
         model = RoboCasaHistoryACTPolicy(
             proprio_dim=int(train_data.proprio.shape[-1]),
             chunk_horizon=int(args.chunk_horizon),
@@ -142,7 +154,18 @@ def main() -> None:
         if args.max_train_seconds > 0 and time.monotonic() - start_time >= float(args.max_train_seconds):
             break
         idx = _sample_indices(train_data, int(args.batch_size), rng, balanced=bool(args.balanced_sampling))
-        if args.policy_kind == "history_act":
+        if args.policy_kind == "history_flow":
+            batch = _history_batch(train_data, idx, device)
+            batch = _augment_history(batch, float(args.image_noise), float(args.proprio_noise))
+            loss = _history_flow_matching_loss(
+                model,
+                batch,
+                sigma=float(args.flow_sigma),
+                flow_source=str(args.flow_source),
+                chunk_decay=float(args.chunk_decay),
+                bc_aux_weight=float(args.bc_aux_weight),
+            )
+        elif args.policy_kind == "history_act":
             batch = _history_batch(train_data, idx, device)
             batch = _augment_history(batch, float(args.image_noise), float(args.proprio_noise))
             pred = model(
@@ -223,6 +246,8 @@ def main() -> None:
         "policy_type": (
             "autorobobench_robocasa_bc5_history_act"
             if args.policy_kind == "history_act"
+            else "autorobobench_robocasa_bc5_history_flow"
+            if args.policy_kind == "history_flow"
             else "autorobobench_robocasa_bc5_sequence_flow"
             if args.policy_kind == "sequence_flow"
             else "autorobobench_robocasa_bc5_temporal_chunk"
@@ -476,6 +501,47 @@ def _sequence_flow_matching_loss(
     return loss
 
 
+def _history_flow_matching_loss(
+    model: RoboCasaHistoryFlowPolicy,
+    batch: dict[str, torch.Tensor],
+    *,
+    sigma: float,
+    flow_source: str,
+    chunk_decay: float,
+    bc_aux_weight: float,
+) -> torch.Tensor:
+    actions = batch["actions"]
+    context = model.encode_obs(
+        batch["prev_agent"],
+        batch["prev_wrist"],
+        batch["agent"],
+        batch["wrist"],
+        batch["prev_proprio"],
+        batch["proprio"],
+        batch["task_id"],
+    )
+    if flow_source == "bc":
+        source = model.bc_action(context).detach()
+    else:
+        source = torch.randn_like(actions) * sigma
+    t = torch.rand((actions.shape[0],), dtype=actions.dtype, device=actions.device)
+    action_t = (1.0 - t.reshape(-1, 1, 1)) * source + t.reshape(-1, 1, 1) * actions
+    target_velocity = actions - source
+    pred_velocity = model.flow_velocity(context, action_t, t)
+    weights = _chunk_weights(actions.shape[1], chunk_decay, actions.device, actions.dtype)
+    per_step = (pred_velocity - target_velocity).square().mean(dim=-1)
+    loss = (per_step * batch["mask"] * weights).sum() / (batch["mask"] * weights).sum().clamp_min(1.0)
+    if bc_aux_weight > 0:
+        pred_bc = model.bc_action(context)
+        loss = loss + float(bc_aux_weight) * _masked_chunk_loss(
+            pred_bc,
+            actions,
+            batch["mask"],
+            chunk_decay=chunk_decay,
+        )
+    return loss
+
+
 def _eval_policy_loss(
     model: nn.Module,
     data: TemporalChunkData,
@@ -486,6 +552,30 @@ def _eval_policy_loss(
     flow_steps: int,
     flow_eval_start: str,
 ) -> float:
+    if policy_kind == "history_flow":
+        model.eval()
+        total = torch.tensor(0.0, device=device)
+        denom = torch.tensor(0.0, device=device)
+        with torch.no_grad():
+            for start in range(0, len(data), batch_size):
+                idx = np.arange(start, min(len(data), start + batch_size))
+                batch = _history_batch(data, idx, device)
+                pred = model.sample_flow(
+                    batch["prev_agent"],
+                    batch["prev_wrist"],
+                    batch["agent"],
+                    batch["wrist"],
+                    batch["prev_proprio"],
+                    batch["proprio"],
+                    batch["task_id"],
+                    steps=flow_steps,
+                    start=flow_eval_start,
+                )
+                per_step = (pred - batch["actions"]).square().mean(dim=-1)
+                total = total + (per_step * batch["mask"]).sum()
+                denom = denom + batch["mask"].sum()
+        model.train()
+        return float((total / denom.clamp_min(1.0)).detach().cpu())
     if policy_kind == "history_act":
         model.eval()
         total = torch.tensor(0.0, device=device)

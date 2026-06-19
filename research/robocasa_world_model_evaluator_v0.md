@@ -453,3 +453,39 @@ Interpretation:
 - Next step:
   - Add more diverse calibration candidates, not only high-success oracles.
   - Score proposed policy traces before full sim validation, then run RoboCasa only on the top-ranked candidates.
+
+v0.13 latent rectified-flow transition attempt:
+- Question:
+  - Can diffusion/flow matching improve next-latent prediction over the deterministic VAE latent transition?
+- Added:
+  - `models/robocasa_latent_flow.py`
+  - `train/train_robocasa_latent_flow.py`
+  - `tasks/world_model_evaluator/eval_latent_flow.py`
+- Setup:
+  - Frozen base model: `runs/robocasa/world_evaluator/vae_robocasa5_stride4_w768_z512/vae_world_model_best.pt`
+  - Flow target: VAE residual `z_{t+1} - z_t`
+  - Data: RoboCasa-5, 80 train demos per task, held-out episodes 87/92/93/94/98/100/101.
+  - Training: 800 steps, width 1024, depth 3, batch 128, frame stride 4.
+- One-step validation:
+
+| model | val next-latent MSE |
+|---|---:|
+| zero residual | 0.00153 |
+| deterministic VAE transition | 0.00250 |
+| stochastic 8-step flow sample | 0.27250 |
+
+- Held-out archive eval:
+  - checkpoint: `runs/robocasa/world_evaluator/latent_flow_stride4_w768_z512_800/latent_flow_best.pt`
+  - archive: `runs/autorobobench/world_model_evaluator/bc5_heldout_scaled/archive.jsonl`
+  - deterministic one-step flow, zero noise.
+  - test Spearman: 0.000
+  - test Pearson: 0.000
+  - top-5 hit: 1.0
+  - speedup: 87.5x
+  - plot: `runs/autorobobench/world_model_evaluator/bc5_heldout_scaled/world_corr_latent_flow_stride4_w768_z512_800_step1.svg`
+
+Interpretation:
+- This flow attempt is a negative result.
+- The stochastic flow sample is much worse than both the deterministic VAE transition and a zero-residual baseline on one-step latent MSE.
+- The cheap deterministic flow rollout saturates the VAE progress/success heads at 1.0 for every candidate, so it cannot rank policies.
+- Flow matching may still be useful, but not as an unconstrained high-variance residual sampler over this VAE latent. The next credible variant should predict bounded residuals or denoise in a normalized residual space, and it should be selected by held-out one-step latent MSE before full archive scoring.

@@ -20,6 +20,7 @@ from train.common import device_from_arg
 
 ensure_robocasa_runtime()
 
+from models.robocasa_sequence_flow import RoboCasaSequenceFlowPolicy  # noqa: E402
 from eval.train_temporal_chunk_bc_robocasa import RoboCasaTemporalChunkBC  # noqa: E402
 
 
@@ -55,6 +56,30 @@ def load_policy(checkpoint: str, device: str = "auto") -> Policy:
             proprio_mean=torch.zeros(1, dtype=torch.float32, device=torch_device),
             proprio_std=torch.ones(1, dtype=torch.float32, device=torch_device),
             mode="trajectory_bank",
+        )
+    if payload.get("policy_type") == "autorobobench_robocasa_bc5_sequence_flow":
+        model = RoboCasaSequenceFlowPolicy(
+            proprio_dim=int(payload["proprio_dim"]),
+            chunk_horizon=int(payload["chunk_horizon"]),
+            action_dim=int(payload["action_dim"]),
+            task_count=int(payload["task_count"]),
+            width=int(payload.get("width", 256)),
+            depth=int(payload.get("transformer_depth", 3)),
+            action_depth=int(payload.get("action_depth", 3)),
+            heads=int(payload.get("heads", 4)),
+            dropout=float(payload.get("dropout", 0.0)),
+        ).to(torch_device)
+        model.load_state_dict(payload["state_dict"])
+        model.eval()
+        return Policy(
+            model=model,
+            checkpoint=payload,
+            device=torch_device,
+            action_mean=_tensor(payload, "action_mean", torch_device),
+            action_std=_tensor(payload, "action_std", torch_device),
+            proprio_mean=_tensor(payload, "proprio_mean", torch_device),
+            proprio_std=_tensor(payload, "proprio_std", torch_device),
+            mode="sequence_flow",
         )
     model = RoboCasaTemporalChunkBC(
         proprio_dim=int(payload["proprio_dim"]),
@@ -103,6 +128,15 @@ def act(policy: Policy, obs: dict, task: dict) -> np.ndarray:
                 proprio_t,
                 task_t,
                 steps=int(policy.checkpoint.get("flow_steps", 8)),
+            )[0]
+        elif policy.mode == "sequence_flow":
+            pred_norm = policy.model.sample_flow(
+                agent_t,
+                wrist_t,
+                proprio_t,
+                task_t,
+                steps=int(policy.checkpoint.get("flow_steps", 8)),
+                start=str(policy.checkpoint.get("flow_eval_start", "bc")),
             )[0]
         else:
             pred_norm = policy.model(agent_t, wrist_t, proprio_t, task_t)[0]

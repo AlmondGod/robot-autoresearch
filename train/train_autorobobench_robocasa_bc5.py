@@ -11,6 +11,7 @@ import torch
 from torch import nn
 
 from autorobobench.robocasa_runtime import ensure_robocasa_runtime
+from models.robocasa_sequence_flow import RoboCasaSequenceFlowPolicy
 from train.common import device_from_arg
 
 
@@ -21,6 +22,7 @@ from eval.train_temporal_chunk_bc_robocasa import (  # noqa: E402
     TemporalChunkData,
     _augment,
     _batch,
+    _chunk_weights,
     _concat_parts,
     _episode_samples,
     _eval_loss,
@@ -51,10 +53,17 @@ def main() -> None:
     parser.add_argument("--image-noise", type=float, default=0.01)
     parser.add_argument("--proprio-noise", type=float, default=0.01)
     parser.add_argument("--action-smooth", type=float, default=0.001)
-    parser.add_argument("--policy-kind", choices=["bc", "flow"], default="bc")
+    parser.add_argument("--policy-kind", choices=["bc", "flow", "sequence_flow"], default="bc")
     parser.add_argument("--flow-steps", type=int, default=8)
     parser.add_argument("--flow-sigma", type=float, default=1.0)
+    parser.add_argument("--flow-source", choices=["noise", "bc"], default="noise")
+    parser.add_argument("--flow-eval-start", choices=["zero", "noise", "bc"], default="bc")
+    parser.add_argument("--bc-aux-weight", type=float, default=0.1)
     parser.add_argument("--chunk-decay", type=float, default=1.0)
+    parser.add_argument("--transformer-depth", type=int, default=3)
+    parser.add_argument("--action-depth", type=int, default=3)
+    parser.add_argument("--heads", type=int, default=4)
+    parser.add_argument("--balanced-sampling", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--log-interval", type=int, default=25)
     parser.add_argument("--device", default="auto")
@@ -83,14 +92,28 @@ def main() -> None:
     val_data.actions = ((val_data.actions - action_mean) / action_std).astype(np.float32)
 
     device = device_from_arg(args.device)
-    model = RoboCasaTemporalChunkBC(
-        proprio_dim=int(train_data.proprio.shape[-1]),
-        chunk_horizon=int(args.chunk_horizon),
-        action_dim=int(train_data.actions.shape[-1]),
-        task_count=max(1, int(max(train_data.task_id.max(initial=0), val_data.task_id.max(initial=0)) + 1)),
-        width=int(args.width),
-        dropout=float(args.dropout),
-    ).to(device)
+    task_count = max(1, int(max(train_data.task_id.max(initial=0), val_data.task_id.max(initial=0)) + 1))
+    if args.policy_kind == "sequence_flow":
+        model = RoboCasaSequenceFlowPolicy(
+            proprio_dim=int(train_data.proprio.shape[-1]),
+            chunk_horizon=int(args.chunk_horizon),
+            action_dim=int(train_data.actions.shape[-1]),
+            task_count=task_count,
+            width=int(args.width),
+            depth=int(args.transformer_depth),
+            action_depth=int(args.action_depth),
+            heads=int(args.heads),
+            dropout=float(args.dropout),
+        ).to(device)
+    else:
+        model = RoboCasaTemporalChunkBC(
+            proprio_dim=int(train_data.proprio.shape[-1]),
+            chunk_horizon=int(args.chunk_horizon),
+            action_dim=int(train_data.actions.shape[-1]),
+            task_count=task_count,
+            width=int(args.width),
+            dropout=float(args.dropout),
+        ).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=float(args.lr), weight_decay=float(args.weight_decay))
     rng = np.random.default_rng(int(args.seed))
     history: list[dict] = []
@@ -102,10 +125,19 @@ def main() -> None:
     for step in range(1, int(args.steps) + 1):
         if args.max_train_seconds > 0 and time.monotonic() - start_time >= float(args.max_train_seconds):
             break
-        idx = rng.integers(0, len(train_data), size=int(args.batch_size))
+        idx = _sample_indices(train_data, int(args.batch_size), rng, balanced=bool(args.balanced_sampling))
         batch = _batch(train_data, idx, device)
         batch = _augment(batch, float(args.image_noise), float(args.proprio_noise))
-        if args.policy_kind == "flow":
+        if args.policy_kind == "sequence_flow":
+            loss = _sequence_flow_matching_loss(
+                model,
+                batch,
+                sigma=float(args.flow_sigma),
+                flow_source=str(args.flow_source),
+                chunk_decay=float(args.chunk_decay),
+                bc_aux_weight=float(args.bc_aux_weight),
+            )
+        elif args.policy_kind == "flow":
             loss = _flow_matching_loss(model, batch, sigma=float(args.flow_sigma), chunk_decay=float(args.chunk_decay))
         else:
             pred = model(batch["agent"], batch["wrist"], batch["proprio"], batch["task_id"])
@@ -119,13 +151,14 @@ def main() -> None:
 
         row = {"step": step, "train_loss": float(loss.detach().cpu()), "elapsed_seconds": time.monotonic() - start_time}
         if step == 1 or step % int(args.log_interval) == 0 or step == int(args.steps):
-            val_loss = _eval_loss(
+            val_loss = _eval_policy_loss(
                 model,
                 val_data,
                 device,
                 batch_size=max(64, int(args.batch_size)),
                 policy_kind=str(args.policy_kind),
                 flow_steps=int(args.flow_steps),
+                flow_eval_start=str(args.flow_eval_start),
             )
             row["val_loss"] = val_loss
             if val_loss < best_val_loss:
@@ -135,29 +168,40 @@ def main() -> None:
             print(f"step={step} train_loss={row['train_loss']:.6f} val_loss={val_loss:.6f}", flush=True)
         history.append(row)
 
-    final_val_loss = _eval_loss(
+    final_val_loss = _eval_policy_loss(
         model,
         val_data,
         device,
         batch_size=max(64, int(args.batch_size)),
         policy_kind=str(args.policy_kind),
         flow_steps=int(args.flow_steps),
+        flow_eval_start=str(args.flow_eval_start),
     )
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         "state_dict": model.state_dict(),
-        "policy_type": "autorobobench_robocasa_bc5_temporal_chunk",
+        "policy_type": (
+            "autorobobench_robocasa_bc5_sequence_flow"
+            if args.policy_kind == "sequence_flow"
+            else "autorobobench_robocasa_bc5_temporal_chunk"
+        ),
         "chunk_horizon": int(args.chunk_horizon),
         "action_dim": int(train_data.actions.shape[-1]),
         "proprio_dim": int(train_data.proprio.shape[-1]),
-        "task_count": max(1, int(max(train_data.task_id.max(initial=0), val_data.task_id.max(initial=0)) + 1)),
+        "task_count": task_count,
         "width": int(args.width),
         "dropout": float(args.dropout),
         "policy_kind": str(args.policy_kind),
         "flow_steps": int(args.flow_steps),
         "flow_sigma": float(args.flow_sigma),
+        "flow_source": str(args.flow_source),
+        "flow_eval_start": str(args.flow_eval_start),
+        "bc_aux_weight": float(args.bc_aux_weight),
         "chunk_decay": float(args.chunk_decay),
+        "transformer_depth": int(args.transformer_depth),
+        "action_depth": int(args.action_depth),
+        "heads": int(args.heads),
         "condition_on_robocasa_task_index": False,
         "views": ["robot0_agentview_left", "robot0_agentview_right"],
         "manifest": str(Path(args.manifest)),
@@ -200,7 +244,14 @@ def main() -> None:
         "policy_kind": str(args.policy_kind),
         "flow_steps": int(args.flow_steps),
         "flow_sigma": float(args.flow_sigma),
+        "flow_source": str(args.flow_source),
+        "flow_eval_start": str(args.flow_eval_start),
+        "bc_aux_weight": float(args.bc_aux_weight),
         "chunk_decay": float(args.chunk_decay),
+        "transformer_depth": int(args.transformer_depth),
+        "action_depth": int(args.action_depth),
+        "heads": int(args.heads),
+        "balanced_sampling": bool(args.balanced_sampling),
         "seed": int(args.seed),
     }
     (out_dir / "history.json").write_text(json.dumps(history, indent=2) + "\n")
@@ -272,6 +323,109 @@ def load_split_data(
         )
         print(f"loaded {alias}: train={train_ids} val={val_ids}", flush=True)
     return _concat_parts(train_parts), _concat_parts(val_parts), summary
+
+
+def _sample_indices(
+    data: TemporalChunkData,
+    batch_size: int,
+    rng: np.random.Generator,
+    *,
+    balanced: bool,
+) -> np.ndarray:
+    if not balanced:
+        return rng.integers(0, len(data), size=batch_size)
+    task_ids = np.unique(data.task_id)
+    if len(task_ids) == 0:
+        return rng.integers(0, len(data), size=batch_size)
+    per_task = int(math.ceil(batch_size / len(task_ids)))
+    parts: list[np.ndarray] = []
+    for task_id in task_ids:
+        pool = np.flatnonzero(data.task_id == int(task_id))
+        if len(pool) == 0:
+            continue
+        parts.append(rng.choice(pool, size=per_task, replace=len(pool) < per_task))
+    if not parts:
+        return rng.integers(0, len(data), size=batch_size)
+    idx = np.concatenate(parts)
+    rng.shuffle(idx)
+    if len(idx) < batch_size:
+        extra = rng.integers(0, len(data), size=batch_size - len(idx))
+        idx = np.concatenate([idx, extra])
+    return idx[:batch_size]
+
+
+def _sequence_flow_matching_loss(
+    model: RoboCasaSequenceFlowPolicy,
+    batch: dict[str, torch.Tensor],
+    *,
+    sigma: float,
+    flow_source: str,
+    chunk_decay: float,
+    bc_aux_weight: float,
+) -> torch.Tensor:
+    actions = batch["actions"]
+    context = model.encode_obs(batch["agent"], batch["wrist"], batch["proprio"], batch["task_id"])
+    if flow_source == "bc":
+        source = model.bc_action(context).detach()
+    else:
+        source = torch.randn_like(actions) * sigma
+    t = torch.rand((actions.shape[0],), dtype=actions.dtype, device=actions.device)
+    action_t = (1.0 - t.reshape(-1, 1, 1)) * source + t.reshape(-1, 1, 1) * actions
+    target_velocity = actions - source
+    pred_velocity = model.flow_velocity(context, action_t, t)
+    weights = _chunk_weights(actions.shape[1], chunk_decay, actions.device, actions.dtype)
+    per_step = (pred_velocity - target_velocity).square().mean(dim=-1)
+    loss = (per_step * batch["mask"] * weights).sum() / (batch["mask"] * weights).sum().clamp_min(1.0)
+    if bc_aux_weight > 0:
+        pred_bc = model.bc_action(context)
+        loss = loss + float(bc_aux_weight) * _masked_chunk_loss(
+            pred_bc,
+            actions,
+            batch["mask"],
+            chunk_decay=chunk_decay,
+        )
+    return loss
+
+
+def _eval_policy_loss(
+    model: nn.Module,
+    data: TemporalChunkData,
+    device: torch.device,
+    batch_size: int,
+    *,
+    policy_kind: str,
+    flow_steps: int,
+    flow_eval_start: str,
+) -> float:
+    if policy_kind != "sequence_flow":
+        return _eval_loss(
+            model,
+            data,
+            device,
+            batch_size=batch_size,
+            policy_kind=policy_kind,
+            flow_steps=flow_steps,
+        )
+    model.eval()
+    total = torch.tensor(0.0, device=device)
+    denom = torch.tensor(0.0, device=device)
+    with torch.no_grad():
+        for start in range(0, len(data), batch_size):
+            idx = np.arange(start, min(len(data), start + batch_size))
+            batch = _batch(data, idx, device)
+            pred = model.sample_flow(
+                batch["agent"],
+                batch["wrist"],
+                batch["proprio"],
+                batch["task_id"],
+                steps=flow_steps,
+                start=flow_eval_start,
+            )
+            per_step = (pred - batch["actions"]).square().mean(dim=-1)
+            total = total + (per_step * batch["mask"]).sum()
+            denom = denom + batch["mask"].sum()
+    model.train()
+    return float((total / denom.clamp_min(1.0)).detach().cpu())
 
 
 if __name__ == "__main__":

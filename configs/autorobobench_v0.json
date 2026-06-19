@@ -105,15 +105,20 @@
         "reproducibility_integrity"
       ],
       "allowed_edit_globs": [
+        "tasks/world_model_evaluator/train.py",
         "train/train_robocasa_vae_world_model.py",
         "train/train_robocasa_vae_trace_calibrator.py",
+        "train/train_robocasa_tiny_evaluator.py",
         "models/robocasa_tiny_evaluator.py",
-        "eval/eval_robocasa_tiny_evaluator_correlation.py",
         "research/robocasa_world_model_evaluator_v0.md",
         "program_autorobobench.md"
       ],
       "immutable_globs": [
+        "tasks/world_model_evaluator/eval.py",
+        "tasks/world_model_evaluator/setup.py",
+        "tasks/world_model_evaluator/task.json",
         "runs/robocasa/world_evaluator/trace_eval_frontier/archive_trace_frontier.jsonl",
+        "eval/eval_robocasa_tiny_evaluator_correlation.py",
         "eval/eval_world_model_ranking.py",
         "configs/autorobobench_v0.json"
       ],

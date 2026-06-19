@@ -9,6 +9,10 @@
   "archive": "runs/robocasa/world_evaluator/trace_eval_frontier/archive_trace_frontier.jsonl",
   "baseline_checkpoint": "runs/robocasa/world_evaluator/vae_opendrawer_task0_trace_calibrated_h260/vae_world_model_trace_calibrated_best.pt",
   "baseline_metric": 0.9309493362512627,
+  "heldout_archive": "runs/autorobobench/world_model_evaluator/bc5_heldout_traces/archive_bc5_heldout.jsonl",
+  "heldout_baseline_checkpoint": "runs/robocasa/world_evaluator/vae_robocasa5_all_scaled_w512_z256_5min/vae_world_model_best.pt",
+  "heldout_baseline_metric": 1.0,
+  "heldout_baseline_notes": "Small v0 smoke split: 3 held-out policy candidates, 5 RoboCasa tasks, 2 eval episodes per task. Scale candidate and episode count before treating as final evidence.",
   "starter_metric": 0.20,
   "reference_metric": 0.90,
   "train_contract": {

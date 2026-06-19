@@ -115,6 +115,7 @@
       ],
       "immutable_globs": [
         "tasks/world_model_evaluator/eval.py",
+        "tasks/world_model_evaluator/build_archive.py",
         "tasks/world_model_evaluator/setup.py",
         "tasks/world_model_evaluator/task.json",
         "runs/robocasa/world_evaluator/trace_eval_frontier/archive_trace_frontier.jsonl",

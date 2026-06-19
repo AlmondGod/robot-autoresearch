@@ -38,6 +38,7 @@ def main() -> None:
     parser.add_argument("--eval-episodes-per-task", type=int, default=10)
     parser.add_argument("--task-alias", action="append", default=[])
     parser.add_argument("--render-dir", default="")
+    parser.add_argument("--trace-dir", default="")
     parser.add_argument("--render-episodes-per-task", type=int, default=0)
     parser.add_argument("--render-width", type=int, default=768)
     parser.add_argument("--render-height", type=int, default=512)
@@ -76,7 +77,7 @@ def main() -> None:
             "robocasa_task": manifest_task.get("robocasa_task", alias),
         }
         for local_idx, episode_id in enumerate(episode_ids):
-            frames, success, steps = _rollout_episode(
+            frames, success, steps, actions, success_trace = _rollout_episode(
                 dataset_root=dataset_root,
                 episode_idx=int(episode_id),
                 policy=policy,
@@ -95,6 +96,24 @@ def main() -> None:
                 "success": bool(success),
                 "steps": int(steps),
             }
+            if args.trace_dir:
+                trace_path = (
+                    Path(args.trace_dir)
+                    / alias
+                    / f"episode_{int(episode_id):06d}.npz"
+                )
+                trace_path.parent.mkdir(parents=True, exist_ok=True)
+                np.savez_compressed(
+                    trace_path,
+                    task_alias=np.asarray([alias]),
+                    task_id=np.asarray([int(split_task["task_id"])], dtype=np.int64),
+                    episode_id=np.asarray([int(episode_id)], dtype=np.int64),
+                    actions=np.asarray(actions, dtype=np.float32),
+                    success=np.asarray(success_trace, dtype=np.float32),
+                    final_success=np.asarray([float(success)], dtype=np.float32),
+                    steps=np.asarray([int(steps)], dtype=np.int64),
+                )
+                row["trace_path"] = str(trace_path)
             if args.render_dir and ffmpeg and local_idx < int(args.render_episodes_per_task):
                 out_mp4 = Path(args.render_dir) / f"{alias}_episode_{int(episode_id):06d}.mp4"
                 if frames:
@@ -143,7 +162,7 @@ def _rollout_episode(
     height: int,
     max_steps: int,
     commit_steps: int,
-) -> tuple[list[np.ndarray], bool, int]:
+) -> tuple[list[np.ndarray], bool, int, list[np.ndarray], list[float]]:
     import robocasa  # noqa: F401
     import robosuite
     from robocasa.scripts.dataset_scripts.playback_dataset import reset_to
@@ -167,6 +186,8 @@ def _rollout_episode(
     )
 
     frames: list[np.ndarray] = []
+    actions_applied: list[np.ndarray] = []
+    success_trace: list[float] = []
     success = False
     step_idx = 0
     try:
@@ -185,12 +206,14 @@ def _rollout_episode(
             for action in actions:
                 _, _, _, info = env.step(action)
                 step_idx += 1
+                actions_applied.append(np.asarray(action, dtype=np.float32).copy())
                 success = bool(info.get("success", False)) if isinstance(info, dict) else False
                 if not success and hasattr(env, "_check_success"):
                     try:
                         success = bool(env._check_success())
                     except Exception:
                         pass
+                success_trace.append(float(success))
                 frames.append(_compose_frame(env, camera, width, height, step_idx, success=success))
                 if success or step_idx >= max_steps:
                     break
@@ -204,7 +227,7 @@ def _rollout_episode(
             env.close()
         except Exception:
             pass
-    return frames, success, step_idx
+    return frames, success, step_idx, actions_applied, success_trace
 
 
 def _render64(env, camera_name: str) -> np.ndarray:

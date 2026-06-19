@@ -18,7 +18,6 @@ from eval.eval_robocasa_tiny_evaluator_correlation import (  # noqa: E402
     _load_archive,
     _load_evaluator,
     _score_trace_candidate,
-    _trace_paths,
 )
 from eval.eval_world_model_ranking import _write_svg, compute_metrics  # noqa: E402
 from train.common import device_from_arg  # noqa: E402
@@ -55,18 +54,20 @@ def main() -> None:
     evaluator.load_state_dict(checkpoint["state_dict"])
     evaluator.eval()
 
-    dataset_root = _dataset_root(Path(args.manifest), str(args.task_alias))
+    dataset_roots = _dataset_roots(Path(args.manifest))
+    default_dataset_root = dataset_roots[str(args.task_alias)]
     rows = _load_archive(Path(args.archive))
     scored_rows: list[dict] = []
     for idx, row in enumerate(rows):
-        trace_paths = _trace_paths(row)
+        trace_groups = _trace_groups(row, default_alias=str(args.task_alias))
         sim_success = float(row.get("success_rate", row.get("score", 0.0)))
-        if trace_paths:
-            raw_learned_score, learned_progress, seconds = _score_trace_candidate(
+        if trace_groups:
+            raw_learned_score, learned_progress, seconds = _score_trace_groups(
                 evaluator=evaluator,
-                evaluator_ckpt=checkpoint,
-                dataset_root=dataset_root,
-                trace_paths=trace_paths,
+                checkpoint=checkpoint,
+                dataset_roots=dataset_roots,
+                default_dataset_root=default_dataset_root,
+                trace_groups=trace_groups,
                 imagined_rollouts=int(args.imagined_rollouts),
                 imagined_steps=int(args.imagined_steps),
                 action_noise=float(args.action_noise),
@@ -84,6 +85,7 @@ def main() -> None:
             {
                 "candidate_id": int(row.get("experiment", idx)),
                 "change": row.get("change"),
+                "split": row.get("split"),
                 "learned_score": learned_score,
                 "raw_learned_score": raw_learned_score,
                 "learned_score_transform": "1-raw" if args.invert_learned_score else "raw",
@@ -92,7 +94,7 @@ def main() -> None:
                 "sim_successes": row.get("successes"),
                 "sim_eval_rollouts": row.get("episodes"),
                 "sim_eval_seconds": float(row.get("episodes") or 0.0) * float(args.sim_seconds_per_rollout),
-                "learned_eval_rollouts": int(args.imagined_rollouts) * len(trace_paths),
+                "learned_eval_rollouts": int(args.imagined_rollouts) * sum(len(paths) for paths in trace_groups.values()),
                 "learned_eval_seconds": seconds,
                 "learned_mode": "action_trace",
                 "error": error,
@@ -100,22 +102,27 @@ def main() -> None:
         )
 
     metrics = compute_metrics(scored_rows, top_k=int(args.top_k))
+    split_metrics = _split_metrics(scored_rows, top_k=int(args.top_k))
+    primary_split = "test" if "test" in split_metrics else "heldout" if "heldout" in split_metrics else "all"
+    primary_metrics = split_metrics.get(primary_split, metrics)
     calibration = _calibration_score(scored_rows)
-    speedup = metrics.get("speedup_ratio")
+    speedup = primary_metrics.get("speedup_ratio")
     result = {
         "track": "world_model_evaluator",
         "checkpoint": str(args.checkpoint),
         "archive": str(args.archive),
         "task_alias": str(args.task_alias),
         "candidate_count": int(metrics["n"]),
-        "wm_spearman": float(metrics["spearman_rho"]),
-        "pearson_r": float(metrics["pearson_r"]),
-        "checkpoint_ranking_accuracy": float(metrics["top_k_hit_rate"]),
+        "wm_spearman": float(primary_metrics["spearman_rho"]),
+        "pearson_r": float(primary_metrics["pearson_r"]),
+        "checkpoint_ranking_accuracy": float(primary_metrics["top_k_hit_rate"]),
         "wm_speedup_score": _speedup_score(speedup),
         "speedup_ratio": speedup,
         "calibration_score": calibration,
         "reproducibility_integrity": 1.0,
         "ranking_metrics": metrics,
+        "split_metrics": split_metrics,
+        "primary_split": primary_split,
         "imagined_rollouts": int(args.imagined_rollouts),
         "imagined_steps": int(args.imagined_steps),
         "action_noise": float(args.action_noise),
@@ -131,12 +138,74 @@ def main() -> None:
     print(json.dumps(result, indent=2, sort_keys=True))
 
 
-def _dataset_root(manifest_path: Path, alias: str) -> Path:
+def _dataset_roots(manifest_path: Path) -> dict[str, Path]:
     manifest = json.loads(manifest_path.read_text())
-    for task in manifest["tasks"]:
-        if task["alias"] == alias:
-            return Path(task["dataset_path"])
-    raise ValueError(f"{alias!r} not found in {manifest_path}")
+    return {str(task["alias"]): Path(task["dataset_path"]) for task in manifest["tasks"]}
+
+
+def _trace_groups(row: dict, *, default_alias: str) -> dict[str, list[Path]]:
+    eval_path = row.get("eval_path")
+    if not eval_path:
+        return {}
+    payload_path = Path(eval_path)
+    if not payload_path.is_absolute():
+        payload_path = Path.cwd() / payload_path
+    if not payload_path.exists():
+        return {}
+    payload = json.loads(payload_path.read_text())
+    groups: dict[str, list[Path]] = {}
+    for detail in payload.get("details", []):
+        trace_path = detail.get("trace_path")
+        if not trace_path:
+            continue
+        path = Path(trace_path)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        if not path.exists():
+            continue
+        alias = str(detail.get("task_alias") or row.get("task_alias") or default_alias)
+        groups.setdefault(alias, []).append(path)
+    return groups
+
+
+def _score_trace_groups(
+    *,
+    evaluator,
+    checkpoint: dict,
+    dataset_roots: dict[str, Path],
+    default_dataset_root: Path,
+    trace_groups: dict[str, list[Path]],
+    imagined_rollouts: int,
+    imagined_steps: int,
+    action_noise: float,
+    device: torch.device,
+) -> tuple[float, float, float]:
+    total_count = 0
+    weighted_score = 0.0
+    weighted_progress = 0.0
+    total_seconds = 0.0
+    for alias, trace_paths in trace_groups.items():
+        if not trace_paths:
+            continue
+        dataset_root = dataset_roots.get(alias, default_dataset_root)
+        raw_score, progress, seconds = _score_trace_candidate(
+            evaluator=evaluator,
+            evaluator_ckpt=checkpoint,
+            dataset_root=dataset_root,
+            trace_paths=trace_paths,
+            imagined_rollouts=imagined_rollouts,
+            imagined_steps=imagined_steps,
+            action_noise=action_noise,
+            device=device,
+        )
+        count = len(trace_paths)
+        weighted_score += raw_score * count
+        weighted_progress += progress * count
+        total_seconds += seconds
+        total_count += count
+    if total_count == 0:
+        raise ValueError("no valid traces to score")
+    return weighted_score / total_count, weighted_progress / total_count, total_seconds
 
 
 def _calibration_score(rows: list[dict]) -> float:
@@ -149,6 +218,21 @@ def _calibration_score(rows: list[dict]) -> float:
         return 0.0
     errors = [abs(float(row["learned_score"]) - float(row["sim_success"])) for row in usable]
     return max(0.0, min(1.0, 1.0 - float(np.mean(errors))))
+
+
+def _split_metrics(rows: list[dict], *, top_k: int) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    splits = sorted({str(row.get("split")) for row in rows if row.get("split") is not None})
+    for split in splits:
+        split_rows = [row for row in rows if str(row.get("split")) == split]
+        usable = [
+            row
+            for row in split_rows
+            if row.get("learned_score") is not None and row.get("sim_success") is not None
+        ]
+        if len(usable) >= 2:
+            out[split] = compute_metrics(usable, top_k=min(int(top_k), len(usable)))
+    return out
 
 
 def _speedup_score(speedup: float | None) -> float:

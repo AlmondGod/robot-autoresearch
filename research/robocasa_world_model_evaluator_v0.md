@@ -350,3 +350,26 @@ Interpretation:
 - The validation issue is not solved by simply moving more local held-out episodes into training.
 - The stronger hypothesis is objective/checkpoint mismatch or insufficient visual decoder detail, not only validation distribution shift.
 - Next data-side improvement should use genuinely new demonstrations/tasks/views, not just reshuffling this same local 537-demo pool.
+
+v0.10 held-out BC-5 policy correlation smoke:
+- Question:
+  - Does the world-model evaluator correlate with real sim success on held-out policy candidates across the five RoboCasa seed tasks, rather than fitting the same OpenDrawer trace frontier?
+- Implementation:
+  - `tasks/robocasa_bc5/eval.py` can now save action traces with `--trace-dir`.
+  - `tasks/world_model_evaluator/eval.py` can score mixed-task archives and uses `split=test` as the primary metric when present.
+  - `tasks/world_model_evaluator/build_archive.py` builds split-labeled candidate archives from traced eval JSONs.
+- Archive:
+  - `runs/autorobobench/world_model_evaluator/bc5_heldout_traces/archive_bc5_heldout.jsonl`
+  - 5 tasks: OpenDrawer, CloseDrawer, PickPlaceCounterToStove, TurnOffStove, PickPlaceCounterToCabinet.
+  - 4 candidate policies, 40 total traces.
+  - held-out test split: 3 candidates x 5 tasks x 2 eval episodes/task.
+  - held-out sim success rates: 0.0, 0.1, 0.2.
+- Best zero-shot evaluator tested:
+  - checkpoint: `runs/robocasa/world_evaluator/vae_robocasa5_all_scaled_w512_z256_5min/vae_world_model_best.pt`
+  - readout: deterministic 260-step trace replay, learned score = `1 - raw`.
+  - held-out test Spearman: 1.000
+  - held-out test Pearson: 0.899
+  - speedup proxy: 22.3x
+- Important caveat:
+  - This is a smoke benchmark, not final evidence. The test split has only 3 policy candidates and 10 eval episodes/candidate.
+  - Next step is scale to at least 10-20 held-out policies and 10 eval episodes/task before making claims.

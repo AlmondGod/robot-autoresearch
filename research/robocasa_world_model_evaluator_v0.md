@@ -401,3 +401,55 @@ v0.11 RoboCasa-only evaluator baselines:
   - test Spearman 1.000, Pearson 0.899 on the current small held-out split.
 - Caveat:
   - The split is still too small. This gives us a good implementation baseline, not yet a robust scientific result.
+
+v0.12 scaled RoboCasa-only held-out archive:
+- Goal:
+  - Re-test world-model evaluator correlation on a larger RoboCasa-only archive with more held-out policy candidates and less noisy real-sim labels.
+- Archive:
+  - `runs/autorobobench/world_model_evaluator/bc5_heldout_scaled/archive.jsonl`
+  - 12 candidates total.
+  - Held-out test split: 10 learned policies.
+  - Calibration split: 2 trajectory-oracle policies.
+  - Real sim labels: 10 episodes per task x 5 tasks = 50 traces per candidate.
+- Held-out learned-policy sim success:
+
+| candidate | split | real success |
+|---|---|---:|
+| seqflow_weak | test | 0.02 |
+| starter_bc5 | test | 0.10 |
+| history_act | test | 0.06 |
+| rgb16_train80 | test | 0.18 |
+| rgb16_trainval90 | test | 0.18 |
+| histflow_3min | test | 0.02 |
+| histflow_5min | test | 0.04 |
+| histflow_progress | test | 0.02 |
+| seqflow_residual | test | 0.04 |
+| actinit_res005 | test | 0.08 |
+| trajectory_oracle_exact | calibration | 0.78 |
+| trajectory_oracle_all | calibration | 0.78 |
+
+- Evaluator results on the 10 held-out test candidates:
+
+| evaluator | readout | test Spearman | test Pearson | top-5 hit | speedup |
+|---|---|---:|---:|---:|---:|
+| VAE w512 z256 5-min | 1-raw | -0.562 | -0.902 | 0.0 | 27.8x |
+| VAE w768 z512 stride4 | 1-raw | 0.840 | 0.928 | 1.0 | 27.2x |
+| VAE w1024 z512 stride8 | 1-raw | -0.599 | -0.712 | 0.0 | 26.7x |
+| mixed calibrated from stride4 | 1-raw | 0.272 | 0.253 | 1.0 | 28.2x |
+
+- Best current baseline:
+  - `runs/robocasa/world_evaluator/vae_robocasa5_stride4_w768_z512/vae_world_model_best.pt`
+  - test Spearman: 0.840
+  - test Pearson: 0.928
+  - top-5 hit: 1.0
+  - speedup proxy: 27.2x
+  - plot: `runs/autorobobench/world_model_evaluator/bc5_heldout_scaled/world_corr_vae_robocasa5_stride4_w768_z512.svg`
+
+Interpretation:
+- The prior small-archive result was not robust: the w512/z256 5-minute evaluator flips negative on the scaled archive.
+- The stride-4 w768/z512 VAE is the first robust RoboCasa-only evaluator baseline on this larger held-out split.
+- Calibration on only two oracle candidates overfits the high-success anchors and hurts held-out ranking, even though it preserves top-5 hit rate.
+- The useful baseline is therefore zero-shot trace scoring from the stride-4 VAE, not the oracle-calibrated head.
+- Next step:
+  - Add more diverse calibration candidates, not only high-success oracles.
+  - Score proposed policy traces before full sim validation, then run RoboCasa only on the top-ranked candidates.

@@ -17,3 +17,12 @@ Setup:
 | CLIP ViT-B/32 | 151.3M | 7.0M | 7.1s / 2.4s | 0.4921 | 0.4990 | 1/5 |
 
 Result: SmolVLM2 gave a small offline MSE improvement over CLIP, but did not improve the tiny closed-loop sample; both solved only `CloseDrawer`.
+
+Follow-up closed-loop eval with 10 episodes/task:
+
+| Backbone | OpenDrawer | CloseDrawer | PickPlaceCounterToStove | TurnOffStove | PickPlaceCounterToCabinet | Total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| SmolVLM2-500M vision tower | 0/10 | 6/10 | 0/10 | 0/10 | 0/10 | 6/50 |
+| CLIP ViT-B/32 | 0/10 | 6/10 | 0/10 | 0/10 | 0/10 | 6/50 |
+
+Conclusion: the larger SmolVLM2 frozen vision tower improves validation MSE slightly, but this did not transfer to measured closed-loop success under the 5-minute training budget. The current benchmark signal is dominated by `CloseDrawer`; the other four tasks remain unsolved by both policies.

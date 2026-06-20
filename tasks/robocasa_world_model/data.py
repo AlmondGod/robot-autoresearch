@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 DEFAULT_MANIFEST = ROOT / "data" / "robocasa5" / "manifest.json"
 DEFAULT_SPLIT = ROOT / "data" / "autorobobench" / "robocasa_bc5_splits.json"
 DEFAULT_POLICY_SET = ROOT / "data" / "autorobobench" / "robocasa_world_model_policy_set.json"
+DEFAULT_VIDEO_POOL = ROOT / "data" / "autorobobench" / "robocasa_world_model_video_pool.json"
 
 
 @dataclass
@@ -34,6 +35,16 @@ class TransitionData:
 
     def __len__(self) -> int:
         return int(self.state.shape[0])
+
+
+@dataclass(frozen=True)
+class VideoOnlyEpisode:
+    alias: str
+    task_id: int
+    split: str
+    episode_id: int
+    view: str
+    video_path: Path
 
 
 def load_transition_data(
@@ -74,6 +85,103 @@ def load_transition_data(
             }
         )
     return _concat(train_parts), _concat(val_parts), summary
+
+
+def load_video_only_pool(
+    video_pool_path: str | Path = DEFAULT_VIDEO_POOL,
+    *,
+    max_episodes_per_task: int = 0,
+    task_aliases: set[str] | None = None,
+    splits: set[str] | None = None,
+) -> list[VideoOnlyEpisode]:
+    """Return RGB video-only records without reading action/state parquet data."""
+    pool = json.loads(Path(video_pool_path).read_text())
+    aliases = task_aliases or set()
+    wanted_splits = splits or set()
+    template = str(pool.get("video_path_template", "videos/chunk-000/observation.images.{view}/episode_{episode_id:06d}.mp4"))
+    records: list[VideoOnlyEpisode] = []
+    for task in pool.get("tasks", []):
+        alias = str(task["alias"])
+        split = str(task.get("split", ""))
+        if aliases and alias not in aliases:
+            continue
+        if wanted_splits and split not in wanted_splits:
+            continue
+        start, end = [int(x) for x in task["video_episode_range"]]
+        episode_ids = list(range(start, end + 1))
+        if int(max_episodes_per_task) > 0:
+            episode_ids = episode_ids[: int(max_episodes_per_task)]
+        dataset_root = Path(str(task["dataset_path"]))
+        if not dataset_root.is_absolute():
+            dataset_root = ROOT / dataset_root
+        for episode_id in episode_ids:
+            for view in pool.get("views", []):
+                rel = template.format(view=str(view), episode_id=int(episode_id))
+                records.append(
+                    VideoOnlyEpisode(
+                        alias=alias,
+                        task_id=int(task["task_id"]),
+                        split=split,
+                        episode_id=int(episode_id),
+                        view=str(view),
+                        video_path=dataset_root / rel,
+                    )
+                )
+    return records
+
+
+def summarize_video_only_pool(records: list[VideoOnlyEpisode]) -> dict[str, Any]:
+    by_task: dict[tuple[str, str], set[int]] = {}
+    existing_videos = 0
+    for record in records:
+        by_task.setdefault((record.alias, record.split), set()).add(int(record.episode_id))
+        if record.video_path.exists():
+            existing_videos += 1
+    return {
+        "video_records": len(records),
+        "video_files_existing": existing_videos,
+        "video_episodes": sum(len(ids) for ids in by_task.values()),
+        "tasks": [
+            {
+                "alias": alias,
+                "split": split,
+                "video_episodes": len(ids),
+            }
+            for (alias, split), ids in sorted(by_task.items())
+        ],
+    }
+
+
+def load_video_frames(video_path: str | Path, *, stride: int = 1, max_frames: int = 0) -> np.ndarray:
+    """Load RGB frames from a video-only record for optional self-supervised methods."""
+    path = Path(video_path)
+    try:
+        import cv2  # type: ignore
+
+        cap = cv2.VideoCapture(str(path))
+        frames = []
+        index = 0
+        while cap.isOpened():
+            ok, frame = cap.read()
+            if not ok:
+                break
+            if index % max(1, int(stride)) == 0:
+                frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                if int(max_frames) > 0 and len(frames) >= int(max_frames):
+                    break
+            index += 1
+        cap.release()
+        return np.asarray(frames, dtype=np.uint8)
+    except ModuleNotFoundError:
+        import imageio.v3 as iio
+
+        frames = []
+        for index, frame in enumerate(iio.imiter(path)):
+            if index % max(1, int(stride)) == 0:
+                frames.append(np.asarray(frame, dtype=np.uint8))
+                if int(max_frames) > 0 and len(frames) >= int(max_frames):
+                    break
+        return np.asarray(frames, dtype=np.uint8)
 
 
 def _append_episodes(parts: list[dict[str, np.ndarray]], dataset_root: Path, episode_ids: list[int], task_id: int, frame_stride: int) -> int:

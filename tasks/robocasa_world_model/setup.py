@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 DEFAULT_MANIFEST = ROOT / "data" / "robocasa5" / "manifest.json"
 DEFAULT_SPLIT = ROOT / "data" / "autorobobench" / "robocasa_bc5_splits.json"
 DEFAULT_POLICY_SET = ROOT / "data" / "autorobobench" / "robocasa_world_model_policy_set.json"
+DEFAULT_VIDEO_POOL = ROOT / "data" / "autorobobench" / "robocasa_world_model_video_pool.json"
 
 
 def main() -> None:
@@ -20,6 +21,7 @@ def main() -> None:
     parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
     parser.add_argument("--split", default=str(DEFAULT_SPLIT))
     parser.add_argument("--policy-set", default=str(DEFAULT_POLICY_SET))
+    parser.add_argument("--video-pool", default=str(DEFAULT_VIDEO_POOL))
     parser.add_argument("--write-policy-template", action="store_true")
     args = parser.parse_args()
 
@@ -29,8 +31,18 @@ def main() -> None:
         raise FileNotFoundError(f"missing manifest: {manifest_path}")
     if not split_path.exists():
         raise FileNotFoundError(f"missing split: {split_path}")
+    video_pool_path = Path(args.video_pool)
+    if not video_pool_path.exists():
+        raise FileNotFoundError(f"missing video pool: {video_pool_path}")
     manifest = json.loads(manifest_path.read_text())
     split = json.loads(split_path.read_text())
+    video_pool = json.loads(video_pool_path.read_text())
+    if video_pool.get("contains_actions", True):
+        raise ValueError("world-model video pool must not expose actions")
+    if video_pool.get("contains_proprio", True):
+        raise ValueError("world-model video pool must not expose proprio")
+    if video_pool.get("contains_state", True):
+        raise ValueError("world-model video pool must not expose state")
     manifest_tasks = {task["alias"]: task for task in manifest["tasks"]}
     tasks = []
     for split_task in split["tasks"]:
@@ -60,6 +72,12 @@ def main() -> None:
         "split": str(split_path),
         "policy_set": str(policy_set),
         "policy_set_exists": policy_set.exists(),
+        "video_pool": str(video_pool_path),
+        "video_pool_exists": video_pool_path.exists(),
+        "video_pool_contains_actions": bool(video_pool.get("contains_actions", True)),
+        "video_pool_contains_proprio": bool(video_pool.get("contains_proprio", True)),
+        "video_only_demo_count": int(video_pool.get("video_only_demo_count", 0)),
+        "video_pool_task_count": len(video_pool.get("tasks", [])),
         "wrote_policy_template": wrote_template,
         "tasks": tasks,
         "task_count": len(tasks),

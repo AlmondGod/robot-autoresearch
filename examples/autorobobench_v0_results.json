@@ -18,10 +18,13 @@
       "data_budget_integrity": 1.0,
       "reproducibility_integrity": 1.0
     },
-    "robocasa_microwave_peak": {
-      "peak_final_success": 0.40,
-      "reliability_stability": 0.40,
-      "data_budget_integrity": 1.0,
+    "robocasa_world_model": {
+      "world_model_benchmark_score": 0.0,
+      "policy_ranking_score": 0.0,
+      "success_calibration_score": 0.0,
+      "reward_progress_score": 0.0,
+      "next_state_score": 0.0,
+      "ood_ranking_score": 0.0,
       "reproducibility_integrity": 1.0
     }
   }

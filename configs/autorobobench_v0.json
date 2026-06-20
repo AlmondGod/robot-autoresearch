@@ -1,6 +1,6 @@
 {
   "version": "autorobobench-v0",
-  "total_points": 140,
+  "total_points": 120,
   "tracks": [
     {
       "id": "robocasa_bc5",
@@ -16,11 +16,6 @@
       "id": "video_policy_transfer",
       "task_spec": "tasks/video_policy_transfer/task.json",
       "weight": 30
-    },
-    {
-      "id": "robocasa_microwave_peak",
-      "task_spec": "tasks/robocasa_microwave_peak/task.json",
-      "weight": 20
     },
     {
       "id": "robocasa_world_model",

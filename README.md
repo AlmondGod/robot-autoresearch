@@ -24,7 +24,7 @@ generated run artifacts have been removed.
 | RoboCasa BC-5 | `tasks/robocasa_bc5/` | `data/autorobobench/robocasa_bc5_splits.json` |
 | Long-Horizon RoboCasa | `tasks/robocasa_long_horizon/` | `data/autorobobench/robocasa_long_horizon_splits.json` |
 | Video Data to Policy Transfer | `tasks/video_policy_transfer/` | `data/autorobobench/video_policy_transfer_splits.json` and `data/autorobobench/video_policy_transfer_video_pool.json` |
-| Microwave Peak Reliability | `tasks/robocasa_microwave_peak/` | `data/autorobobench/robocasa_microwave_peak_splits.json` and `data/autorobobench/robocasa_microwave_peak_video_pool.json` |
+| RoboCasa World Model Policy Correlation | `tasks/robocasa_world_model/` | `data/autorobobench/robocasa_world_model_policy_set.json` |
 
 ## Setup
 
@@ -91,14 +91,4 @@ Run the scarce-action video-transfer wrapper:
 ```bash
 python tasks/video_policy_transfer/setup.py --verify
 python tasks/video_policy_transfer/train.py --max-train-seconds 300
-```
-
-Run the single-task microwave peak-reliability wrapper:
-
-```bash
-python tasks/robocasa_microwave_peak/setup.py --verify
-python tasks/robocasa_microwave_peak/train.py
-python tasks/robocasa_microwave_peak/eval.py \
-  --policy runs/autorobobench/robocasa_microwave_peak/bc5_base/policy_best.pt \
-  --out runs/autorobobench/robocasa_microwave_peak/bc5_base/eval_success.json
 ```

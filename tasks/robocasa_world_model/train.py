@@ -17,11 +17,14 @@ sys.path.insert(0, str(ROOT))
 from tasks.robocasa_world_model.data import (
     DEFAULT_MANIFEST,
     DEFAULT_SPLIT,
+    DEFAULT_VIDEO_POOL,
     TransitionData,
     load_transition_data,
+    load_video_only_pool,
     make_stats,
     normalize_data,
     save_json,
+    summarize_video_only_pool,
 )
 from tasks.robocasa_world_model.model import RoboCasaWorldModel
 from train.common import device_from_arg
@@ -31,6 +34,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train RoboCasa learned world model.")
     parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
     parser.add_argument("--split", default=str(DEFAULT_SPLIT))
+    parser.add_argument("--video-pool", default=str(DEFAULT_VIDEO_POOL))
+    parser.add_argument("--video-episodes-per-task", type=int, default=0)
+    parser.add_argument("--video-pool-split", action="append", default=[])
     parser.add_argument("--out-dir", default="runs/autorobobench/robocasa_world_model/base")
     parser.add_argument("--train-episodes-per-task", type=int, default=20)
     parser.add_argument("--val-episodes-per-task", type=int, default=5)
@@ -68,6 +74,25 @@ def main() -> None:
     )
     if len(train_raw) == 0 or len(val_raw) == 0:
         raise ValueError("need both train and val transitions for world-model training")
+    video_summary = {"enabled": False, "reason": "video_episodes_per_task is 0"}
+    if int(args.video_episodes_per_task) > 0:
+        video_records = load_video_only_pool(
+            args.video_pool,
+            max_episodes_per_task=int(args.video_episodes_per_task),
+            task_aliases=set(args.task_alias),
+            splits=set(args.video_pool_split),
+        )
+        video_summary = {
+            "enabled": True,
+            "video_pool": str(args.video_pool),
+            "max_episodes_per_task": int(args.video_episodes_per_task),
+            "splits": list(args.video_pool_split),
+            **summarize_video_only_pool(video_records),
+            "notes": [
+                "Default baseline records availability only and does not train on video-only data.",
+                "Mutable training methods can use load_video_only_pool/load_video_frames for inverse dynamics or self-supervised video losses.",
+            ],
+        }
     stats = make_stats(train_raw)
     train = normalize_data(train_raw, stats)
     val = normalize_data(val_raw, stats)
@@ -119,16 +144,17 @@ def main() -> None:
             print(json.dumps(row, sort_keys=True), flush=True)
             if row["val_score_loss"] < best_val:
                 best_val = row["val_score_loss"]
-                _save_checkpoint(out_dir / "policy_best.pt", model, stats, args, summary, history, step)
+                _save_checkpoint(out_dir / "policy_best.pt", model, stats, args, summary, video_summary, history, step)
 
     final_metrics = _eval(model, val, int(args.batch_size), device)
-    _save_checkpoint(out_dir / "policy_last.pt", model, stats, args, summary, history, len(history))
+    _save_checkpoint(out_dir / "policy_last.pt", model, stats, args, summary, video_summary, history, len(history))
     payload = {
         "task": "robocasa_world_model",
         "checkpoint": str(out_dir / "policy_best.pt"),
         "last_checkpoint": str(out_dir / "policy_last.pt"),
         "train_transitions": len(train),
         "val_transitions": len(val),
+        "video_only_pool": video_summary,
         "summary": summary,
         "final_val": final_metrics,
         "best_val_score_loss": best_val,
@@ -181,6 +207,7 @@ def _save_checkpoint(
     stats: dict[str, np.ndarray],
     args: argparse.Namespace,
     summary: list[dict],
+    video_summary: dict,
     history: list[dict],
     step: int,
 ) -> None:
@@ -201,6 +228,7 @@ def _save_checkpoint(
             "config": cfg,
             "stats": stats,
             "summary": summary,
+            "video_only_pool": video_summary,
             "history": history,
             "step": int(step),
             "task": "robocasa_world_model",

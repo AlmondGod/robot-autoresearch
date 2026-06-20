@@ -9,6 +9,7 @@
   "manifest": "data/robocasa5/manifest.json",
   "split": "data/autorobobench/robocasa_bc5_splits.json",
   "policy_set": "data/autorobobench/robocasa_world_model_policy_set.json",
+  "video_pool": "data/autorobobench/robocasa_world_model_video_pool.json",
   "starter_metric": 0.0,
   "reference_metric": 1.0,
   "benchmark": {
@@ -48,6 +49,7 @@
       "data/robocasa5/manifest.json",
       "data/autorobobench/robocasa_bc5_splits.json",
       "data/autorobobench/robocasa_world_model_policy_set.json",
+      "data/autorobobench/robocasa_world_model_video_pool.json",
       "configs/autorobobench_v0.json"
     ],
     "notes": "Learned RoboCasa world-model track scored by policy ranking/calibration against real eval success plus transition prediction quality."
@@ -59,6 +61,15 @@
     "targets": ["next_state", "next_task_progress", "next_reward", "task_success"],
     "latent_prediction_allowed": true,
     "vae_allowed": true,
+    "optional_action_free_video_pool": true,
+    "default_action_labeled_train_rollouts_per_task": 20,
+    "optional_in_task_video_only_episodes_per_task": 60,
+    "optional_related_video_only_episodes": 427,
+    "video_pool_contains_actions": false,
+    "video_pool_contains_proprio": false,
+    "video_pool_contains_state": false,
+    "video_pool_contains_rgb_video": true,
+    "video_use_requires_auxiliary_strategy": "inverse_dynamics_or_self_supervised_video_objective",
     "primary_eval": "correlation_between_world_model_policy_scores_and_real_sim_success",
     "ood_policy_set_required_for_final_score": true
   },
@@ -72,7 +83,8 @@
     "val_episodes_per_task": 5,
     "frame_stride": 1,
     "steps": 2000,
-    "latent_dim": 0
+    "latent_dim": 0,
+    "video_episodes_per_task": 0
   },
   "metrics": {
     "primary": "world_model_benchmark_score",

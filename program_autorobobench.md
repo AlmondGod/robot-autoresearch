@@ -44,13 +44,6 @@ Improve compositional manipulation and recovery on the sequential seed tasks.
 Use scarce paired-action demos plus action-free RoboCasa videos to improve the
 closed-loop policy.
 
-### Microwave Peak Reliability
-
-Push reliability on one repetitive, visually clear task:
-`PickPlaceCounterToMicrowave`. The base implementation is the current BC-5
-trainer/inference stack, with task-specific action demos and optional generic
-action-free RoboCasa video data.
-
 ## Smoke Test
 
 ```bash

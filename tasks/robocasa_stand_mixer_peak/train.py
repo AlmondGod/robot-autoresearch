@@ -26,7 +26,7 @@ def main() -> None:
     _default("--out-dir", "runs/autorobobench/robocasa_stand_mixer_peak/bc_base")
     _default("--train-episodes-per-task", "80")
     _default("--val-episodes-per-task", "10")
-    _default("--chunk-horizon", "32")
+    _default("--chunk-horizon", "16")
     _default("--frame-stride", "1")
     _default("--steps", "800")
     _default("--batch-size", "128")
@@ -36,7 +36,6 @@ def main() -> None:
     _default("--proprio-noise", "0.004")
     _default("--chunk-decay", "0.82")
     _default("--action-smooth", "0.0005")
-    _default("--progress-conditioning", None)
     _default("--progress-scale", "750")
     _default("--eval-commit-steps", "8")
 

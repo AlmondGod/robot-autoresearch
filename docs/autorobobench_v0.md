@@ -13,7 +13,7 @@ RoboCasa profile so it is easier to migrate the task/data layer later.
 | `robocasa_bc5` | RoboCasa BC-5 | 30 | hidden held-out success |
 | `robocasa_long_horizon` | Long-Horizon RoboCasa | 40 | full success plus subgoal progress |
 | `video_policy_transfer` | Video Data to Policy Transfer | 30 | scarce-action success with video-only data |
-| `robocasa_microwave_peak` | Microwave Peak Reliability | 20 | single-task near-perfect success |
+| `robocasa_world_model` | RoboCasa World Model Policy Correlation | 20 | policy/world-model correlation |
 
 The retained public assets are:
 
@@ -22,9 +22,6 @@ The retained public assets are:
 - `data/autorobobench/robocasa_long_horizon_splits.json`
 - `data/autorobobench/video_policy_transfer_splits.json`
 - `data/autorobobench/video_policy_transfer_video_pool.json`
-- `data/autorobobench/robocasa_microwave_peak_manifest.json`
-- `data/autorobobench/robocasa_microwave_peak_splits.json`
-- `data/autorobobench/robocasa_microwave_peak_video_pool.json`
 
 ## Scoring
 
@@ -98,20 +95,4 @@ exposes a larger RGB-only video pool without actions or proprio.
 ```bash
 python tasks/video_policy_transfer/setup.py --verify
 python tasks/video_policy_transfer/train.py --max-train-seconds 300
-```
-
-## Microwave Peak Reliability
-
-The microwave peak track isolates one visually clear repetitive task:
-`PickPlaceCounterToMicrowave`. It uses the current BC-5 policy/training base,
-80 target-task cloning demos, and an optional generic RGB-only video pool from
-other RoboCasa tasks. The generic pool excludes the target task to avoid exposing
-held-out microwave eval videos.
-
-```bash
-python tasks/robocasa_microwave_peak/setup.py --verify
-python tasks/robocasa_microwave_peak/train.py
-python tasks/robocasa_microwave_peak/eval.py \
-  --policy runs/autorobobench/robocasa_microwave_peak/bc5_base/policy_best.pt \
-  --out runs/autorobobench/robocasa_microwave_peak/bc5_base/eval_success.json
 ```

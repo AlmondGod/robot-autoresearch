@@ -11,6 +11,43 @@
   "video_pool": "data/autorobobench/robocasa_microwave_peak_video_pool.json",
   "starter_metric": 0.25,
   "reference_metric": 0.98,
+  "benchmark": {
+    "phase": 1,
+    "primary_metric": "peak_final_success",
+    "starter_metric": 0.25,
+    "reference_metric": 0.98,
+    "higher_is_better": true,
+    "score_weights": {
+      "peak_final_success": 0.70,
+      "reliability_stability": 0.15,
+      "data_budget_integrity": 0.05,
+      "reproducibility_integrity": 0.10
+    },
+    "required_result_keys": [
+      "peak_final_success",
+      "reliability_stability",
+      "data_budget_integrity",
+      "reproducibility_integrity"
+    ],
+    "allowed_edit_globs": [
+      "tasks/robocasa_microwave_peak/train.py",
+      "tasks/robocasa_microwave_peak/inference.py",
+      "train/**",
+      "models/**",
+      "program_autorobobench.md"
+    ],
+    "immutable_globs": [
+      "tasks/robocasa_microwave_peak/eval.py",
+      "tasks/robocasa_microwave_peak/setup.py",
+      "tasks/robocasa_microwave_peak/task.json",
+      "tasks/robocasa_bc5/eval.py",
+      "data/autorobobench/robocasa_microwave_peak_manifest.json",
+      "data/autorobobench/robocasa_microwave_peak_splits.json",
+      "data/autorobobench/robocasa_microwave_peak_video_pool.json",
+      "configs/autorobobench_v0.json"
+    ],
+    "notes": "Single-task peak-reliability goal for PickPlaceCounterToMicrowave using task-specific cloning data plus optional generic action-free video data, with the current BC-5 base policy code."
+  },
   "train_contract": {
     "single_model": true,
     "train_tasks": 1,

@@ -49,6 +49,7 @@ def _describe(args: argparse.Namespace) -> None:
                 "id": track.id,
                 "name": track.name,
                 "phase": track.phase,
+                "task_spec": track.task_spec,
                 "weight": track.weight,
                 "primary_metric": track.primary_metric,
                 "starter_metric": track.starter_metric,

@@ -10,6 +10,43 @@
   "split": "data/autorobobench/robocasa_long_horizon_splits.json",
   "starter_metric": 0.05,
   "reference_metric": 0.55,
+  "benchmark": {
+    "phase": 1,
+    "primary_metric": "hidden_final_success",
+    "starter_metric": 0.05,
+    "reference_metric": 0.55,
+    "higher_is_better": true,
+    "score_weights": {
+      "hidden_final_success": 0.55,
+      "subgoal_progress": 0.25,
+      "improvement_auc_over_budget": 0.10,
+      "reproducibility_integrity": 0.10
+    },
+    "required_result_keys": [
+      "hidden_final_success",
+      "subgoal_progress",
+      "improvement_auc_over_budget",
+      "reproducibility_integrity"
+    ],
+    "allowed_edit_globs": [
+      "tasks/robocasa_long_horizon/train.py",
+      "tasks/robocasa_long_horizon/inference.py",
+      "train/**",
+      "models/**",
+      "program_autorobobench.md"
+    ],
+    "immutable_globs": [
+      "tasks/robocasa_long_horizon/eval.py",
+      "tasks/robocasa_long_horizon/setup.py",
+      "tasks/robocasa_long_horizon/task.json",
+      "data/make_robocasa5.py",
+      "data/download_robocasa.py",
+      "data/robocasa5/manifest.json",
+      "data/autorobobench/robocasa_long_horizon_splits.json",
+      "configs/autorobobench_v0.json"
+    ],
+    "notes": "Sequential RoboCasa manipulation track over the long-horizon subset of the seed tasks."
+  },
   "train_contract": {
     "single_model": true,
     "train_tasks": 3,

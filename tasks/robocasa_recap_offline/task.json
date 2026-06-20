@@ -1,0 +1,30 @@
+{
+  "id": "robocasa_recap_offline",
+  "name": "RoboCasa RECAP Offline",
+  "version": "v0",
+  "setup": "tasks/robocasa_recap_offline/setup.py",
+  "train": "tasks/robocasa_recap_offline/train.py",
+  "inference": "tasks/robocasa_recap_offline/inference.py",
+  "eval": "tasks/robocasa_recap_offline/eval.py",
+  "manifest": "data/robocasa5/manifest.json",
+  "split": "data/autorobobench/robocasa_bc5_splits.json",
+  "starter_metric": 0.1,
+  "reference_metric": 0.7,
+  "train_contract": {
+    "single_model": true,
+    "train_tasks": 5,
+    "eval_tasks": 5,
+    "test_time_demo_access": false,
+    "offline_experience": true,
+    "experience_sources": ["demonstrations", "failed_rollouts", "corrections"]
+  },
+  "policy_interface": {
+    "load_policy": "load_policy(checkpoint: str, device: str) -> policy",
+    "act": "act(policy, obs: dict, task: dict) -> np.ndarray[action_horizon, action_dim]"
+  },
+  "default_eval": {
+    "eval_episodes_per_task": 10,
+    "max_steps": 260,
+    "commit_steps": 16
+  }
+}

@@ -1,165 +1,31 @@
 {
   "version": "autorobobench-v0",
-  "total_points": 120,
+  "total_points": 140,
   "tracks": [
     {
       "id": "robocasa_bc5",
-      "name": "RoboCasa BC-5",
-      "phase": 1,
-      "weight": 30,
-      "primary_metric": "hidden_final_success",
-      "starter_metric": 0.10,
-      "reference_metric": 0.70,
-      "higher_is_better": true,
-      "score_weights": {
-        "hidden_final_success": 0.60,
-        "improvement_auc_over_budget": 0.20,
-        "robustness_generalization": 0.10,
-        "reproducibility_integrity": 0.10
-      },
-      "required_result_keys": [
-        "hidden_final_success",
-        "improvement_auc_over_budget",
-        "robustness_generalization",
-        "reproducibility_integrity"
-      ],
-      "allowed_edit_globs": [
-        "tasks/robocasa_bc5/train.py",
-        "tasks/robocasa_bc5/inference.py",
-        "train/**",
-        "models/**",
-        "program_autorobobench.md"
-      ],
-      "immutable_globs": [
-        "tasks/robocasa_bc5/eval.py",
-        "tasks/robocasa_bc5/setup.py",
-        "tasks/robocasa_bc5/task.json",
-        "data/make_robocasa5.py",
-        "data/robocasa5/manifest.json",
-        "data/autorobobench/robocasa_bc5_splits.json",
-        "configs/autorobobench_v0.json"
-      ],
-      "notes": "Executable RoboCasa BC-5 track. Improve one policy across the five seed RoboCasa tasks while eval remains fixed."
+      "task_spec": "tasks/robocasa_bc5/task.json",
+      "weight": 30
     },
     {
       "id": "robocasa_long_horizon",
-      "name": "Long-Horizon RoboCasa",
-      "phase": 1,
-      "weight": 40,
-      "primary_metric": "hidden_final_success",
-      "starter_metric": 0.05,
-      "reference_metric": 0.55,
-      "higher_is_better": true,
-      "score_weights": {
-        "hidden_final_success": 0.55,
-        "subgoal_progress": 0.25,
-        "improvement_auc_over_budget": 0.10,
-        "reproducibility_integrity": 0.10
-      },
-      "required_result_keys": [
-        "hidden_final_success",
-        "subgoal_progress",
-        "improvement_auc_over_budget",
-        "reproducibility_integrity"
-      ],
-      "allowed_edit_globs": [
-        "tasks/robocasa_long_horizon/train.py",
-        "tasks/robocasa_long_horizon/inference.py",
-        "train/**",
-        "models/**",
-        "program_autorobobench.md"
-      ],
-      "immutable_globs": [
-        "tasks/robocasa_long_horizon/eval.py",
-        "tasks/robocasa_long_horizon/setup.py",
-        "tasks/robocasa_long_horizon/task.json",
-        "data/make_robocasa5.py",
-        "data/download_robocasa.py",
-        "data/robocasa5/manifest.json",
-        "data/autorobobench/robocasa_long_horizon_splits.json",
-        "configs/autorobobench_v0.json"
-      ],
-      "notes": "Sequential RoboCasa manipulation track over the long-horizon subset of the seed tasks."
+      "task_spec": "tasks/robocasa_long_horizon/task.json",
+      "weight": 40
     },
     {
       "id": "video_policy_transfer",
-      "name": "Video Data to Policy Transfer",
-      "phase": 1,
-      "weight": 30,
-      "primary_metric": "video_transfer_success",
-      "starter_metric": 0.05,
-      "reference_metric": 0.35,
-      "higher_is_better": true,
-      "score_weights": {
-        "normalized_primary_progress": 0.55,
-        "paired_action_efficiency": 0.20,
-        "data_budget_integrity": 0.15,
-        "reproducibility_integrity": 0.10
-      },
-      "required_result_keys": [
-        "video_transfer_success",
-        "paired_action_efficiency",
-        "data_budget_integrity",
-        "reproducibility_integrity"
-      ],
-      "allowed_edit_globs": [
-        "tasks/video_policy_transfer/train.py",
-        "tasks/video_policy_transfer/inference.py",
-        "train/**",
-        "models/**",
-        "program_autorobobench.md"
-      ],
-      "immutable_globs": [
-        "tasks/video_policy_transfer/eval.py",
-        "tasks/video_policy_transfer/setup.py",
-        "tasks/video_policy_transfer/task.json",
-        "tasks/robocasa_bc5/eval.py",
-        "data/robocasa5/manifest.json",
-        "data/autorobobench/video_policy_transfer_splits.json",
-        "data/autorobobench/video_policy_transfer_video_pool.json",
-        "configs/autorobobench_v0.json"
-      ],
-      "notes": "Scarce-action transfer track using two paired demos per task plus an RGB-only RoboCasa video pool."
+      "task_spec": "tasks/video_policy_transfer/task.json",
+      "weight": 30
     },
     {
       "id": "robocasa_microwave_peak",
-      "name": "RoboCasa Microwave Peak Reliability",
-      "phase": 1,
-      "weight": 20,
-      "primary_metric": "peak_final_success",
-      "starter_metric": 0.25,
-      "reference_metric": 0.98,
-      "higher_is_better": true,
-      "score_weights": {
-        "peak_final_success": 0.70,
-        "reliability_stability": 0.15,
-        "data_budget_integrity": 0.05,
-        "reproducibility_integrity": 0.10
-      },
-      "required_result_keys": [
-        "peak_final_success",
-        "reliability_stability",
-        "data_budget_integrity",
-        "reproducibility_integrity"
-      ],
-      "allowed_edit_globs": [
-        "tasks/robocasa_microwave_peak/train.py",
-        "tasks/robocasa_microwave_peak/inference.py",
-        "train/**",
-        "models/**",
-        "program_autorobobench.md"
-      ],
-      "immutable_globs": [
-        "tasks/robocasa_microwave_peak/eval.py",
-        "tasks/robocasa_microwave_peak/setup.py",
-        "tasks/robocasa_microwave_peak/task.json",
-        "tasks/robocasa_bc5/eval.py",
-        "data/autorobobench/robocasa_microwave_peak_manifest.json",
-        "data/autorobobench/robocasa_microwave_peak_splits.json",
-        "data/autorobobench/robocasa_microwave_peak_video_pool.json",
-        "configs/autorobobench_v0.json"
-      ],
-      "notes": "Single-task peak-reliability goal for PickPlaceCounterToMicrowave using task-specific cloning data plus optional generic action-free video data, with the current BC-5 base policy code."
+      "task_spec": "tasks/robocasa_microwave_peak/task.json",
+      "weight": 20
+    },
+    {
+      "id": "robocasa_world_model",
+      "task_spec": "tasks/robocasa_world_model/task.json",
+      "weight": 20
     }
   ]
 }

@@ -1,0 +1,100 @@
+{
+  "id": "robocasa_world_model",
+  "name": "RoboCasa World Model Policy Correlation",
+  "version": "v0",
+  "setup": "tasks/robocasa_world_model/setup.py",
+  "train": "tasks/robocasa_world_model/train.py",
+  "inference": "tasks/robocasa_world_model/inference.py",
+  "eval": "tasks/robocasa_world_model/eval.py",
+  "manifest": "data/robocasa5/manifest.json",
+  "split": "data/autorobobench/robocasa_bc5_splits.json",
+  "policy_set": "data/autorobobench/robocasa_world_model_policy_set.json",
+  "starter_metric": 0.0,
+  "reference_metric": 1.0,
+  "benchmark": {
+    "phase": 1,
+    "primary_metric": "world_model_benchmark_score",
+    "starter_metric": 0.0,
+    "reference_metric": 1.0,
+    "higher_is_better": true,
+    "score_weights": {
+      "world_model_benchmark_score": 1.0
+    },
+    "required_result_keys": [
+      "world_model_benchmark_score",
+      "policy_ranking_score",
+      "success_calibration_score",
+      "reward_progress_score",
+      "next_state_score",
+      "ood_ranking_score",
+      "reproducibility_integrity"
+    ],
+    "allowed_edit_globs": [
+      "tasks/robocasa_world_model/train.py",
+      "tasks/robocasa_world_model/inference.py",
+      "tasks/robocasa_world_model/model.py",
+      "tasks/robocasa_world_model/data.py",
+      "tasks/robocasa_world_model/policy_set.py",
+      "tasks/robocasa_world_model/trace.py",
+      "tasks/robocasa_world_model/plot_eval.py",
+      "train/**",
+      "models/**",
+      "program_autorobobench.md"
+    ],
+    "immutable_globs": [
+      "tasks/robocasa_world_model/eval.py",
+      "tasks/robocasa_world_model/setup.py",
+      "tasks/robocasa_world_model/task.json",
+      "data/robocasa5/manifest.json",
+      "data/autorobobench/robocasa_bc5_splits.json",
+      "data/autorobobench/robocasa_world_model_policy_set.json",
+      "configs/autorobobench_v0.json"
+    ],
+    "notes": "Learned RoboCasa world-model track scored by policy ranking/calibration against real eval success plus transition prediction quality."
+  },
+  "train_contract": {
+    "train_tasks": 5,
+    "eval_tasks": 5,
+    "input": "state_t, action_t, task_id, progress_t",
+    "targets": ["next_state", "next_task_progress", "next_reward", "task_success"],
+    "latent_prediction_allowed": true,
+    "vae_allowed": true,
+    "primary_eval": "correlation_between_world_model_policy_scores_and_real_sim_success",
+    "ood_policy_set_required_for_final_score": true
+  },
+  "world_model_interface": {
+    "load_world_model": "load_world_model(checkpoint: str, device: str) -> dict",
+    "predict_next": "predict_next(world_model, state, action, task_id, progress) -> dict",
+    "rollout_score": "rollout_score(world_model, initial_state, actions, task_id) -> dict"
+  },
+  "default_train": {
+    "train_episodes_per_task": 20,
+    "val_episodes_per_task": 5,
+    "frame_stride": 1,
+    "steps": 2000,
+    "latent_dim": 0
+  },
+  "metrics": {
+    "primary": "world_model_benchmark_score",
+    "score_weights": {
+      "policy_ranking_score": 0.50,
+      "success_calibration_score": 0.20,
+      "reward_progress_score": 0.15,
+      "next_state_score": 0.10,
+      "ood_ranking_score": 0.05
+    },
+    "secondary": [
+      "policy_ranking_score",
+      "success_calibration_score",
+      "reward_progress_score",
+      "next_state_score",
+      "ood_ranking_score",
+      "policy_score_spearman",
+      "success_calibration_rmse",
+      "next_state_mse_norm",
+      "next_progress_mse",
+      "next_reward_mse",
+      "success_bce"
+    ]
+  }
+}

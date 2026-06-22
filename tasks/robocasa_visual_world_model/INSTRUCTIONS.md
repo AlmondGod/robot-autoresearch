@@ -29,3 +29,12 @@ python3 tasks/robocasa_visual_world_model/eval.py \
   --out runs/autorobobench/robocasa_visual_world_model/<run>/eval_lpips.json \
   --device cuda
 ```
+
+## Visualize
+
+Summarize visual world-model metrics under `<run>/visualize/`. Add `--rollout` to save a predicted-vs-actual rollout GIF when a checkpoint is available.
+
+```bash
+python3 tasks/robocasa_visual_world_model/visualize.py \
+  --run-dir runs/autorobobench/robocasa_visual_world_model/<run>
+```

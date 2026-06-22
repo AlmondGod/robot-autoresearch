@@ -44,3 +44,12 @@ python3 tasks/robocasa_bc5/eval_parallel.py \
   --workers 5 \
   --device cuda
 ```
+
+## Visualize
+
+Summarize eval/training outputs under `<run>/visualize/`. Add `--render` to also save eval videos.
+
+```bash
+python3 tasks/robocasa_faucet_peak/visualize.py \
+  --run-dir runs/autorobobench/robocasa_faucet_peak/<run>
+```

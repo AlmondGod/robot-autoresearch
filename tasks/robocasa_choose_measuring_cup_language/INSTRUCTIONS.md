@@ -31,3 +31,12 @@ python3 tasks/robocasa_choose_measuring_cup_language/eval.py \
   --out runs/autorobobench/robocasa_choose_measuring_cup_language/<run>/eval.json \
   --device cuda
 ```
+
+## Visualize
+
+Summarize eval/training outputs under `<run>/visualize/`. Add `--render` to also save eval videos.
+
+```bash
+python3 tasks/robocasa_choose_measuring_cup_language/visualize.py \
+  --run-dir runs/autorobobench/robocasa_choose_measuring_cup_language/<run>
+```

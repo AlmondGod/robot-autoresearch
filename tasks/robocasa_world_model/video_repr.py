@@ -17,7 +17,17 @@ if str(ROOT) in sys.path:
 sys.path.insert(0, str(ROOT))
 
 from tasks.robocasa_world_model.data import DEFAULT_VIDEO_POOL, load_video_frame, load_video_frames, load_video_only_pool
-from train.common import device_from_arg
+def device_from_arg(name: str):
+    import torch
+
+    if name == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
+
 
 
 class VideoProgressEncoder(nn.Module):

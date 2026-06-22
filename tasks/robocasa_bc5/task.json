@@ -1,65 +1,64 @@
 {
-  "id": "robocasa_bc5",
-  "name": "RoboCasa BC-5",
-  "version": "v0",
-  "setup": "tasks/robocasa_bc5/setup.py",
-  "train": "tasks/robocasa_bc5/train.py",
-  "inference": "tasks/robocasa_bc5/inference.py",
-  "eval": "tasks/robocasa_bc5/eval.py",
-  "manifest": "data/robocasa5/manifest.json",
-  "split": "data/autorobobench/robocasa_bc5_splits.json",
-  "starter_metric": 0.1,
-  "reference_metric": 0.7,
   "benchmark": {
+    "allowed_edit_globs": [
+      "program_autorobobench.md",
+      "tasks/robocasa_bc5/**",
+      "tasks/robocasa_bc5/inference.py",
+      "tasks/robocasa_bc5/train.py"
+    ],
+    "higher_is_better": true,
+    "immutable_globs": [
+      "benchmark.json",
+      "data/autorobobench/robocasa_bc5_splits.json",
+      "data/robocasa5/manifest.json",
+      "tasks/robocasa_bc5/eval.py",
+      "tasks/robocasa_bc5/setup.py",
+      "tasks/robocasa_bc5/task.json"
+    ],
+    "notes": "Executable RoboCasa BC-5 track. Improve one policy across the five seed RoboCasa tasks while eval remains fixed.",
     "phase": 1,
     "primary_metric": "hidden_final_success",
-    "starter_metric": 0.1,
     "reference_metric": 0.7,
-    "higher_is_better": true,
-    "score_weights": {
-      "hidden_final_success": 0.6,
-      "improvement_auc_over_budget": 0.2,
-      "robustness_generalization": 0.1,
-      "reproducibility_integrity": 0.1
-    },
     "required_result_keys": [
       "hidden_final_success",
       "improvement_auc_over_budget",
       "robustness_generalization",
       "reproducibility_integrity"
     ],
-    "allowed_edit_globs": [
-      "tasks/robocasa_bc5/train.py",
-      "tasks/robocasa_bc5/inference.py",
-      "train/**",
-      "models/**",
-      "program_autorobobench.md"
-    ],
-    "immutable_globs": [
-      "tasks/robocasa_bc5/eval.py",
-      "tasks/robocasa_bc5/setup.py",
-      "tasks/robocasa_bc5/task.json",
-      "data/make_robocasa5.py",
-      "data/robocasa5/manifest.json",
-      "data/autorobobench/robocasa_bc5_splits.json",
-      "configs/autorobobench_v0.json"
-    ],
-    "notes": "Executable RoboCasa BC-5 track. Improve one policy across the five seed RoboCasa tasks while eval remains fixed."
-  },
-  "train_contract": {
-    "single_model": true,
-    "train_tasks": 5,
-    "eval_tasks": 5,
-    "test_time_demo_access": false
-  },
-  "policy_interface": {
-    "load_policy": "load_policy(checkpoint: str, device: str) -> policy",
-    "act": "act(policy, obs: dict, task: dict) -> np.ndarray[action_horizon, action_dim]",
-    "commit_steps": "optional commit_steps(policy, task: dict, action_chunk: np.ndarray, default_commit_steps: int) -> int"
+    "score_weights": {
+      "hidden_final_success": 0.6,
+      "improvement_auc_over_budget": 0.2,
+      "reproducibility_integrity": 0.1,
+      "robustness_generalization": 0.1
+    },
+    "starter_metric": 0.1
   },
   "default_eval": {
+    "commit_steps": 16,
     "eval_episodes_per_task": 10,
-    "max_steps": 260,
-    "commit_steps": 16
-  }
+    "max_steps": 260
+  },
+  "eval": "tasks/robocasa_bc5/eval.py",
+  "id": "robocasa_bc5",
+  "inference": "tasks/robocasa_bc5/inference.py",
+  "manifest": "data/robocasa5/manifest.json",
+  "name": "RoboCasa BC-5",
+  "policy_interface": {
+    "act": "act(policy, obs: dict, task: dict) -> np.ndarray[action_horizon, action_dim]",
+    "commit_steps": "optional commit_steps(policy, task: dict, action_chunk: np.ndarray, default_commit_steps: int) -> int",
+    "load_policy": "load_policy(checkpoint: str, device: str) -> policy"
+  },
+  "reference_metric": 0.7,
+  "setup": "tasks/robocasa_bc5/setup.py",
+  "split": "data/autorobobench/robocasa_bc5_splits.json",
+  "starter_metric": 0.1,
+  "train": "tasks/robocasa_bc5/train.py",
+  "train_contract": {
+    "eval_tasks": 5,
+    "single_model": true,
+    "test_time_demo_access": false,
+    "train_tasks": 5
+  },
+  "version": "v0",
+  "visualize": "tasks/robocasa_bc5/visualize.py"
 }

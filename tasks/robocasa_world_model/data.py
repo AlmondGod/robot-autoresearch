@@ -14,6 +14,35 @@ if str(ROOT) in sys.path:
     sys.path.remove(str(ROOT))
 sys.path.insert(0, str(ROOT))
 
+
+def ensure_robocasa_runtime() -> None:
+    import json as _json
+    import os as _os
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    repo = _Path(__file__).resolve().parents[2]
+    for rel in ("third_party/robocasa", "third_party/robosuite", "."):
+        path = str((repo / rel).resolve())
+        if path not in _sys.path:
+            _sys.path.insert(0, path)
+    _os.environ.setdefault("PYTHONPATH", _os.pathsep.join(_sys.path))
+    try:
+        import lerobot.datasets.utils as _utils
+    except ModuleNotFoundError:
+        return
+    if hasattr(_utils, "write_info"):
+        return
+
+    def write_info(info: dict, root: str | _Path) -> None:
+        root_path = _Path(root)
+        path = root_path if root_path.name == "info.json" else root_path / "info.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_json.dumps(info, indent=2, sort_keys=True) + "\n")
+
+    _utils.write_info = write_info
+
+
 DEFAULT_MANIFEST = ROOT / "data" / "robocasa5" / "manifest.json"
 DEFAULT_SPLIT = ROOT / "data" / "autorobobench" / "robocasa_bc5_splits.json"
 DEFAULT_POLICY_SET = ROOT / "data" / "autorobobench" / "robocasa_world_model_policy_set.json"
@@ -257,8 +286,6 @@ def episode_actions(dataset_root: Path, episode_id: int, frame: pd.DataFrame | N
     if "action" in frame:
         return np.stack(frame["action"].to_numpy()).astype(np.float32)
     try:
-        from autorobobench.robocasa_runtime import ensure_robocasa_runtime
-
         ensure_robocasa_runtime()
         import robocasa.utils.lerobot_utils as LU
 

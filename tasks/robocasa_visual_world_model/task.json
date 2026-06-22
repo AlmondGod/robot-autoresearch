@@ -1,28 +1,29 @@
 {
-  "id": "robocasa_visual_world_model",
-  "name": "RoboCasa Visually Accurate World Model",
-  "version": "v0",
-  "setup": "tasks/robocasa_visual_world_model/setup.py",
-  "train": "tasks/robocasa_visual_world_model/train.py",
-  "inference": "tasks/robocasa_visual_world_model/inference.py",
-  "eval": "tasks/robocasa_visual_world_model/eval.py",
-  "manifest": "data/robocasa5/manifest.json",
-  "split": "data/autorobobench/robocasa_bc5_splits.json",
-  "starter_metric": 0.0,
-  "reference_metric": 0.8,
   "benchmark": {
+    "allowed_edit_globs": [
+      "program_autorobobench.md",
+      "tasks/robocasa_visual_world_model/**",
+      "tasks/robocasa_visual_world_model/inference.py",
+      "tasks/robocasa_visual_world_model/model.py",
+      "tasks/robocasa_visual_world_model/train.py",
+      "tasks/robocasa_visual_world_model/visualize_rollout.py",
+      "tasks/robocasa_world_model/data.py",
+      "tasks/robocasa_world_model/inverse_dynamics.py",
+      "tasks/robocasa_world_model/model.py",
+      "tasks/robocasa_world_model/video_repr.py"
+    ],
+    "higher_is_better": true,
+    "immutable_globs": [
+      "data/autorobobench/robocasa_bc5_splits.json",
+      "data/robocasa5/manifest.json",
+      "tasks/robocasa_visual_world_model/eval.py",
+      "tasks/robocasa_visual_world_model/setup.py",
+      "tasks/robocasa_visual_world_model/task.json"
+    ],
+    "notes": "Learned RoboCasa world-model track scored mainly by held-out LPIPS next-frame visual accuracy from real RoboCasa videos, plus pixel/state/progress/success consistency.",
     "phase": 1,
     "primary_metric": "visual_world_model_score",
-    "starter_metric": 0.0,
     "reference_metric": 0.8,
-    "higher_is_better": true,
-    "score_weights": {
-      "visual_perceptual_score": 0.50,
-      "visual_reconstruction_score": 0.25,
-      "next_state_score": 0.15,
-      "progress_score": 0.05,
-      "success_score": 0.05
-    },
     "required_result_keys": [
       "visual_world_model_score",
       "visual_perceptual_score",
@@ -32,78 +33,42 @@
       "success_score",
       "reproducibility_integrity"
     ],
-    "allowed_edit_globs": [
-      "tasks/robocasa_visual_world_model/train.py",
-      "tasks/robocasa_visual_world_model/inference.py",
-      "tasks/robocasa_visual_world_model/model.py",
-      "tasks/robocasa_visual_world_model/visualize_rollout.py",
-      "tasks/robocasa_world_model/model.py",
-      "tasks/robocasa_world_model/data.py",
-      "tasks/robocasa_world_model/inverse_dynamics.py",
-      "tasks/robocasa_world_model/video_repr.py",
-      "train/**",
-      "models/**",
-      "program_autorobobench.md"
-    ],
-    "immutable_globs": [
-      "tasks/robocasa_visual_world_model/eval.py",
-      "tasks/robocasa_visual_world_model/setup.py",
-      "tasks/robocasa_visual_world_model/task.json",
-      "data/robocasa5/manifest.json",
-      "data/autorobobench/robocasa_bc5_splits.json"
-    ],
-    "notes": "Learned RoboCasa world-model track scored mainly by held-out LPIPS next-frame visual accuracy from real RoboCasa videos, plus pixel/state/progress/success consistency."
-  },
-  "train_contract": {
-    "train_tasks": 5,
-    "eval_tasks": 5,
-    "input": "state_t, action_t, task_id, progress_t, optional RGB frame_t during training",
-    "targets": [
-      "next_rgb_frame",
-      "next_state",
-      "next_task_progress",
-      "task_success"
-    ],
-    "default_action_labeled_train_rollouts_per_task": 20,
-    "default_eval_rollouts_per_task": 5,
-    "heldout_visual_eval": true,
-    "primary_visual_metric": "LPIPS alex next-frame distance",
-    "latent_prediction_allowed": true,
-    "vae_allowed": true,
-    "rgb_reconstruction_allowed": true,
-    "base_architecture": "state/action latent dynamics plus image VAE and flow-matching heads",
-    "flow_matching_targets": ["next_visual_latent", "state_delta"],
-    "video_only_pretraining_allowed": true,
-    "inverse_dynamics_auxiliary_allowed": true,
-    "primary_eval": "heldout_next_frame_visual_accuracy_plus_transition_consistency"
-  },
-  "world_model_interface": {
-    "load_world_model": "load_world_model(checkpoint: str, device: str) -> dict",
-    "predict_next": "predict_next(world_model, state, action, task_id, progress) -> dict with next_rgb"
+    "score_weights": {
+      "next_state_score": 0.15,
+      "progress_score": 0.05,
+      "success_score": 0.05,
+      "visual_perceptual_score": 0.5,
+      "visual_reconstruction_score": 0.25
+    },
+    "starter_metric": 0.0
   },
   "default_train": {
+    "frame_stride": 1,
+    "image_size": 32,
+    "image_vae_weight": 0.25,
+    "inverse_align_weight": 0.0,
+    "latent_dim": 64,
+    "state_flow_weight": 0.25,
+    "steps": 2000,
     "train_episodes_per_task": 20,
     "val_episodes_per_task": 5,
-    "frame_stride": 1,
     "view": "robot0_agentview_right",
-    "image_size": 32,
-    "steps": 2000,
-    "latent_dim": 64,
-    "visual_latent_dim": 64,
-    "visual_weight": 1.0,
-    "image_vae_weight": 0.25,
     "visual_flow_weight": 0.5,
-    "state_flow_weight": 0.25,
-    "inverse_align_weight": 0.0
+    "visual_latent_dim": 64,
+    "visual_weight": 1.0
   },
+  "eval": "tasks/robocasa_visual_world_model/eval.py",
+  "id": "robocasa_visual_world_model",
+  "inference": "tasks/robocasa_visual_world_model/inference.py",
+  "manifest": "data/robocasa5/manifest.json",
   "metrics": {
     "primary": "visual_world_model_score",
     "score_weights": {
-      "visual_perceptual_score": 0.50,
-      "visual_reconstruction_score": 0.25,
       "next_state_score": 0.15,
       "progress_score": 0.05,
-      "success_score": 0.05
+      "success_score": 0.05,
+      "visual_perceptual_score": 0.5,
+      "visual_reconstruction_score": 0.25
     },
     "secondary": [
       "visual_perceptual_score",
@@ -118,5 +83,43 @@
       "next_progress_mse",
       "success_bce"
     ]
-  }
+  },
+  "name": "RoboCasa Visually Accurate World Model",
+  "reference_metric": 0.8,
+  "setup": "tasks/robocasa_visual_world_model/setup.py",
+  "split": "data/autorobobench/robocasa_bc5_splits.json",
+  "starter_metric": 0.0,
+  "train": "tasks/robocasa_visual_world_model/train.py",
+  "train_contract": {
+    "base_architecture": "state/action latent dynamics plus image VAE and flow-matching heads",
+    "default_action_labeled_train_rollouts_per_task": 20,
+    "default_eval_rollouts_per_task": 5,
+    "eval_tasks": 5,
+    "flow_matching_targets": [
+      "next_visual_latent",
+      "state_delta"
+    ],
+    "heldout_visual_eval": true,
+    "input": "state_t, action_t, task_id, progress_t, optional RGB frame_t during training",
+    "inverse_dynamics_auxiliary_allowed": true,
+    "latent_prediction_allowed": true,
+    "primary_eval": "heldout_next_frame_visual_accuracy_plus_transition_consistency",
+    "primary_visual_metric": "LPIPS alex next-frame distance",
+    "rgb_reconstruction_allowed": true,
+    "targets": [
+      "next_rgb_frame",
+      "next_state",
+      "next_task_progress",
+      "task_success"
+    ],
+    "train_tasks": 5,
+    "vae_allowed": true,
+    "video_only_pretraining_allowed": true
+  },
+  "version": "v0",
+  "world_model_interface": {
+    "load_world_model": "load_world_model(checkpoint: str, device: str) -> dict",
+    "predict_next": "predict_next(world_model, state, action, task_id, progress) -> dict with next_rgb"
+  },
+  "visualize": "tasks/robocasa_visual_world_model/visualize.py"
 }

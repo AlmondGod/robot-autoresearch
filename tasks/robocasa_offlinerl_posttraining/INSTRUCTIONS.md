@@ -30,3 +30,12 @@ python3 tasks/robocasa_offlinerl_posttraining/eval.py \
   --eval-episodes-per-task 10 \
   --device cuda
 ```
+
+## Visualize
+
+Summarize offline-RL data composition, assigned rewards/advantages, training metrics, and eval success under `<run>/visualize/`.
+
+```bash
+python3 tasks/robocasa_offlinerl_posttraining/visualize.py \
+  --run-dir runs/autorobobench/robocasa_offlinerl_posttraining/<run>
+```

@@ -8,7 +8,7 @@ if str(ROOT) in sys.path:
     sys.path.remove(str(ROOT))
 sys.path.insert(0, str(ROOT))
 
-from train.train_autorobobench_robocasa_bc5 import main  # noqa: E402
+from tasks.robocasa_bc5.train import main  # noqa: E402
 
 
 DEFAULT_ARGS = {

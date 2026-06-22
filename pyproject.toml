@@ -1,7 +1,7 @@
 [project]
 name = "robot-autoresearch"
 version = "0.1.0"
-description = "AutoroboBench RoboCasa task harnesses and scoring utilities."
+description = "AutoRoboBench RoboCasa task harnesses."
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24",
@@ -30,4 +30,4 @@ robocasa = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["autorobobench*", "data*", "models*", "tasks*", "train*"]
+include = ["tasks*"]

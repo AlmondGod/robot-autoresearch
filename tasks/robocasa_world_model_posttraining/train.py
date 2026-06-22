@@ -20,8 +20,18 @@ sys.path.insert(0, str(ROOT))
 from tasks.robocasa_bc5.inference import load_policy
 from tasks.robocasa_visual_world_model.model import VisualRoboCasaWorldModel
 from tasks.robocasa_world_model.model import RoboCasaWorldModel
-from train.common import device_from_arg
-from train.train_autorobobench_robocasa_bc5 import (
+def device_from_arg(name: str):
+    import torch
+
+    if name == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
+
+from tasks.robocasa_bc5.train import (
     _append_progress_features,
     _batch,
     _checkpoint_state_dict,

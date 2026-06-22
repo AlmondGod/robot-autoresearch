@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import hashlib
 import importlib.util
 import json
+import math
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
 PACKAGING_COMMANDS = {
@@ -23,31 +27,4971 @@ PACKAGING_COMMANDS = {
 }
 
 ROOT = Path(__file__).resolve().parent
+BENCHMARK_PATH = ROOT / "benchmark.json"
 
-CONFIGS = (
-    "configs/autorobobench_v0.json",
-    "configs/autorobobench_visual_world_model_v0.json",
-    "configs/autorobobench_world_model_posttraining_v0.json",
-)
+GENERATED_JSON: dict[str, Any] = {'data/autorobobench/pretrained_policies.json': {'description': 'Pretrained RoboCasa policy artifacts and '
+                                                                'reproducibility metadata used by AutoRoboBench tasks.',
+                                                 'policies': [{'build_metrics': 'data/autorobobench/pretrained_policy_evals/robocasa_close_fridge_trajectory_bank_all106_rgb16_build_metrics.json',
+                                                               'build_seconds': 36.54371445905417,
+                                                               'checkpoint': 'data/autorobobench/pretrained_policies/robocasa_close_fridge_trajectory_bank_all106_rgb16.pt',
+                                                               'differentiable': False,
+                                                               'inference': 'tasks.robocasa_bc5.inference',
+                                                               'manifest': 'data/autorobobench/robocasa_close_fridge_peak_manifest.json',
+                                                               'name': 'robocasa_close_fridge_trajectory_bank_all106_rgb16',
+                                                               'notes': 'Single-task replay baseline built from 106 '
+                                                                        'CloseFridge demonstrations. This is a '
+                                                                        'checked-in nonzero reliability floor, not a '
+                                                                        'learned or differentiable policy.',
+                                                               'policy_kind': 'trajectory_bank',
+                                                               'policy_type': 'robocasa_bc5_trajectory_bank',
+                                                               'real_eval_elapsed_seconds': 201.6529816170223,
+                                                               'real_eval_episodes': 32,
+                                                               'real_eval_json': 'data/autorobobench/pretrained_policy_evals/robocasa_close_fridge_trajectory_bank_all106_rgb16_eval_32x16.json',
+                                                               'real_eval_successes': 32,
+                                                               'real_eval_workers': 16,
+                                                               'real_success_rate': 1.0,
+                                                               'sha256': '2dce0156229ade92a50dcd9747ff32d7f724d2a628cc4f9c9550a696964b5010',
+                                                               'size_bytes': 3312782,
+                                                               'split': 'data/autorobobench/robocasa_close_fridge_full_dataset_splits.json',
+                                                               'task': 'CloseFridge',
+                                                               'task_alias': 'CloseFridge',
+                                                               'track': 'robocasa_close_fridge_full_dataset',
+                                                               'train_seconds': 0.0,
+                                                               'wm_policy_improvement_supported': False},
+                                                              {'checkpoint': 'data/autorobobench/pretrained_policies/robocasa_faucet_direct_bc_all_data_5min_seed0.pt',
+                                                               'differentiable': True,
+                                                               'inference': 'tasks.robocasa_bc5.inference',
+                                                               'manifest': 'data/autorobobench/robocasa_faucet_peak_manifest.json',
+                                                               'name': 'robocasa_faucet_direct_bc_all_data_5min_seed0',
+                                                               'notes': 'Checked-in WM-compatible direct BC faucet '
+                                                                        'base. Current frozen state-WM improvement '
+                                                                        'attempts improved validation WM objectives '
+                                                                        'but did not beat this base in real simulator '
+                                                                        'success.',
+                                                               'policy_kind': 'bc',
+                                                               'policy_type': 'autorobobench_robocasa_bc5_temporal_chunk',
+                                                               'real_eval_elapsed_seconds': 174.25820579985157,
+                                                               'real_eval_episodes': 10,
+                                                               'real_eval_json': 'data/autorobobench/pretrained_policy_evals/robocasa_faucet_direct_bc_all_data_5min_seed0_eval_source_10x5.json',
+                                                               'real_eval_successes': 6,
+                                                               'real_eval_workers': 5,
+                                                               'real_success_rate': 0.6,
+                                                               'sha256': '098a51c7826a8994655a204d78c2cf7183b80344167833f473da44f31dba09c0',
+                                                               'size_bytes': 15529632,
+                                                               'split': 'data/autorobobench/robocasa_faucet_peak_splits.json',
+                                                               'task': 'TurnOnSinkFaucet',
+                                                               'task_alias': 'TurnOnSinkFaucet',
+                                                               'track': 'robocasa_faucet_peak',
+                                                               'train_seconds': 303.6176133058034,
+                                                               'wm_improvement_attempts': [{'best_val_policy_improvement_score': 0.025371635822922137,
+                                                                                            'name': 'faucet_direct_bc_wm_5min',
+                                                                                            'real_eval_episodes': 10,
+                                                                                            'real_eval_json': 'data/autorobobench/pretrained_policy_evals/robocasa_faucet_direct_bc_wm_aggressive_eval_10x5.json',
+                                                                                            'real_eval_successes': 4,
+                                                                                            'real_success_rate': 0.4,
+                                                                                            'train_seconds': 233.60409522010013},
+                                                                                           {'best_val_policy_improvement_score': 0.0025044332810941726,
+                                                                                            'name': 'faucet_direct_bc_wm_conservative_5min',
+                                                                                            'real_eval_episodes': 10,
+                                                                                            'real_eval_json': 'data/autorobobench/pretrained_policy_evals/robocasa_faucet_direct_bc_wm_conservative_eval_10x5.json',
+                                                                                            'real_eval_successes': 6,
+                                                                                            'real_success_rate': 0.6,
+                                                                                            'train_seconds': 121.40056601120159}],
+                                                               'wm_policy_improvement_supported': True},
+                                                              {'artifact_status': 'external_or_local_runs',
+                                                               'checkpoint': 'runs/autorobobench/robocasa_bc5/autoresearch_clip_recede4_open_only/policy_best.pt',
+                                                               'differentiable': True,
+                                                               'inference': 'tasks.robocasa_bc5.inference',
+                                                               'name': 'autoresearch_clip_recede4_open_only',
+                                                               'notes': 'Current best documented BC5 base in '
+                                                                        'data/autorobobench/robocasa_world_model_policy_set.json, '
+                                                                        'but not directly supported by '
+                                                                        'robocasa_world_model_posttraining v0 because '
+                                                                        'v0 excludes history/frozen-VLM-cache policy '
+                                                                        'modes.',
+                                                               'policy_kind': 'frozen_clip_flow',
+                                                               'real_eval_json': 'runs/autorobobench/robocasa_bc5/autoresearch_clip_recede4_open_only/eval_10_per_task_local.json',
+                                                               'real_success_rate': 0.14,
+                                                               'task': 'RoboCasaBC5',
+                                                               'track': 'robocasa_bc5',
+                                                               'wm_policy_improvement_supported': False},
+                                                              {'artifact_status': 'external_or_local_runs',
+                                                               'checkpoint': 'runs/autorobobench/robocasa_bc5/clip_5min_seed0/policy_best.pt',
+                                                               'differentiable': True,
+                                                               'inference': 'tasks.robocasa_bc5.inference',
+                                                               'name': 'clip_5min_seed0',
+                                                               'notes': 'Documented 5-minute BC5 base; needs artifact '
+                                                                        'publication before fully reproducible use '
+                                                                        'outside the original run directory.',
+                                                               'policy_kind': 'frozen_clip_flow',
+                                                               'real_eval_json': 'runs/autorobobench/robocasa_bc5/clip_5min_seed0/eval_10_per_task_local.json',
+                                                               'real_success_rate': 0.12,
+                                                               'task': 'RoboCasaBC5',
+                                                               'track': 'robocasa_bc5',
+                                                               'wm_policy_improvement_supported': False}],
+                                                 'schema_version': 1},
+ 'data/autorobobench/pretrained_policy_evals/robocasa_close_fridge_trajectory_bank_all106_rgb16_build_metrics.json': {'action_dim': 12,
+                                                                                                                      'build_seconds': 36.54371445905417,
+                                                                                                                      'checkpoint': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/policy.pt',
+                                                                                                                      'episodes': 106,
+                                                                                                                      'eval_chunk': 16,
+                                                                                                                      'max_len': 522,
+                                                                                                                      'per_task': {'CloseFridge': 106},
+                                                                                                                      'policy_type': 'robocasa_bc5_trajectory_bank',
+                                                                                                                      'select_by_episode_id': True},
+ 'data/autorobobench/pretrained_policy_evals/robocasa_close_fridge_trajectory_bank_all106_rgb16_eval_32x16.json': {'checkpoint': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/policy.pt',
+                                                                                                                   'commit_steps': 16,
+                                                                                                                   'details': [{'episode_id': 0,
+                                                                                                                                'steps': 282,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 1,
+                                                                                                                                'steps': 254,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 2,
+                                                                                                                                'steps': 126,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 3,
+                                                                                                                                'steps': 331,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 4,
+                                                                                                                                'steps': 140,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 5,
+                                                                                                                                'steps': 237,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 6,
+                                                                                                                                'steps': 144,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 7,
+                                                                                                                                'steps': 229,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 8,
+                                                                                                                                'steps': 291,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 9,
+                                                                                                                                'steps': 269,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 10,
+                                                                                                                                'steps': 273,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 11,
+                                                                                                                                'steps': 245,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 12,
+                                                                                                                                'steps': 336,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 13,
+                                                                                                                                'steps': 101,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 14,
+                                                                                                                                'steps': 317,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 15,
+                                                                                                                                'steps': 118,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 16,
+                                                                                                                                'steps': 218,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 17,
+                                                                                                                                'steps': 508,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 18,
+                                                                                                                                'steps': 359,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 19,
+                                                                                                                                'steps': 150,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 20,
+                                                                                                                                'steps': 184,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 21,
+                                                                                                                                'steps': 185,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 22,
+                                                                                                                                'steps': 414,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 23,
+                                                                                                                                'steps': 134,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 24,
+                                                                                                                                'steps': 297,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 25,
+                                                                                                                                'steps': 227,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 26,
+                                                                                                                                'steps': 320,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 27,
+                                                                                                                                'steps': 133,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 28,
+                                                                                                                                'steps': 122,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 29,
+                                                                                                                                'steps': 559,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 30,
+                                                                                                                                'steps': 308,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0},
+                                                                                                                               {'episode_id': 31,
+                                                                                                                                'steps': 339,
+                                                                                                                                'success': True,
+                                                                                                                                'task_alias': 'CloseFridge',
+                                                                                                                                'task_id': 0}],
+                                                                                                                   'episodes': 32,
+                                                                                                                   'inference': 'tasks.robocasa_bc5.inference',
+                                                                                                                   'manifest': 'data/autorobobench/robocasa_close_fridge_peak_manifest.json',
+                                                                                                                   'manifest_track': 'robocasa_close_fridge_peak',
+                                                                                                                   'max_steps': 600,
+                                                                                                                   'parallel_eval': {'elapsed_seconds': 201.6529816170223,
+                                                                                                                                     'worker_results': [{'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_000.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_001.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_002.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_003.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_004.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_005.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_006.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_007.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_008.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_009.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_010.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_011.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_012.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_013.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_014.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2},
+                                                                                                                                                        {'episodes': 2,
+                                                                                                                                                         'path': 'runs/autorobobench/robocasa_close_fridge_full_dataset/trajectory_bank_all106_rgb16/eval_parallel_32x16_parallel/result_worker_015.json',
+                                                                                                                                                         'success_rate': 1.0,
+                                                                                                                                                         'successes': 2}],
+                                                                                                                                     'workers': 16},
+                                                                                                                   'per_task': {'CloseFridge': {'episodes': 32,
+                                                                                                                                                'success_rate': 1.0,
+                                                                                                                                                'successes': 32}},
+                                                                                                                   'split': 'data/autorobobench/robocasa_close_fridge_full_dataset_splits.json',
+                                                                                                                   'split_track': 'robocasa_close_fridge_full_dataset',
+                                                                                                                   'success_rate': 1.0,
+                                                                                                                   'successes': 32,
+                                                                                                                   'track': 'robocasa_bc5'},
+ 'data/autorobobench/pretrained_policy_evals/robocasa_faucet_direct_bc_all_data_5min_seed0_eval_source_10x5.json': {'checkpoint': 'runs/autorobobench/robocasa_faucet_peak/a100_bc_all_data_5min_seed0/policy_best.pt',
+                                                                                                                    'commit_steps': 16,
+                                                                                                                    'details': [{'episode_id': 2,
+                                                                                                                                 'reset_perturbation': {'description': 'Small '
+                                                                                                                                                                       'deterministic '
+                                                                                                                                                                       'robot '
+                                                                                                                                                                       'arm '
+                                                                                                                                                                       'qpos '
+                                                                                                                                                                       'perturbation '
+                                                                                                                                                                       'applied '
+                                                                                                                                                                       'after '
+                                                                                                                                                                       'loading '
+                                                                                                                                                                       'the '
+                                                                                                                                                                       'selected '
+                                                                                                                                                                       'recovery '
+                                                                                                                                                                       'state. '
+                                                                                                                                                                       'Gripper, '
+                                                                                                                                                                       'faucet, '
+                                                                                                                                                                       'and '
+                                                                                                                                                                       'fixture '
+                                                                                                                                                                       'qpos '
+                                                                                                                                                                       'are '
+                                                                                                                                                                       'not '
+                                                                                                                                                                       'perturbed.',
+                                                                                                                                                        'qpos_indices': [4,
+                                                                                                                                                                         5,
+                                                                                                                                                                         6,
+                                                                                                                                                                         7,
+                                                                                                                                                                         8,
+                                                                                                                                                                         9,
+                                                                                                                                                                         10],
+                                                                                                                                                        'qpos_noise_clip': 0.01,
+                                                                                                                                                        'qpos_noise_std': 0.005,
+                                                                                                                                                        'seed': 20260621,
+                                                                                                                                                        'type': 'qpos_noise'},
+                                                                                                                                 'reset_state_index': 79,
+                                                                                                                                 'steps': 207,
+                                                                                                                                 'success': True,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 15,
+                                                                                                                                 'steps': 181,
+                                                                                                                                 'success': True,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 75,
+                                                                                                                                 'steps': 400,
+                                                                                                                                 'success': False,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 65,
+                                                                                                                                 'steps': 253,
+                                                                                                                                 'success': True,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 60,
+                                                                                                                                 'steps': 213,
+                                                                                                                                 'success': True,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 62,
+                                                                                                                                 'steps': 199,
+                                                                                                                                 'success': True,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 51,
+                                                                                                                                 'steps': 400,
+                                                                                                                                 'success': False,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 54,
+                                                                                                                                 'reset_perturbation': {'description': 'Small '
+                                                                                                                                                                       'deterministic '
+                                                                                                                                                                       'robot '
+                                                                                                                                                                       'arm '
+                                                                                                                                                                       'qpos '
+                                                                                                                                                                       'perturbation '
+                                                                                                                                                                       'applied '
+                                                                                                                                                                       'after '
+                                                                                                                                                                       'loading '
+                                                                                                                                                                       'the '
+                                                                                                                                                                       'selected '
+                                                                                                                                                                       'recovery '
+                                                                                                                                                                       'state. '
+                                                                                                                                                                       'Gripper, '
+                                                                                                                                                                       'faucet, '
+                                                                                                                                                                       'and '
+                                                                                                                                                                       'fixture '
+                                                                                                                                                                       'qpos '
+                                                                                                                                                                       'are '
+                                                                                                                                                                       'not '
+                                                                                                                                                                       'perturbed.',
+                                                                                                                                                        'qpos_indices': [4,
+                                                                                                                                                                         5,
+                                                                                                                                                                         6,
+                                                                                                                                                                         7,
+                                                                                                                                                                         8,
+                                                                                                                                                                         9,
+                                                                                                                                                                         10],
+                                                                                                                                                        'qpos_noise_clip': 0.01,
+                                                                                                                                                        'qpos_noise_std': 0.005,
+                                                                                                                                                        'seed': 20260621,
+                                                                                                                                                        'type': 'qpos_noise'},
+                                                                                                                                 'reset_state_index': 109,
+                                                                                                                                 'steps': 400,
+                                                                                                                                 'success': False,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 82,
+                                                                                                                                 'steps': 400,
+                                                                                                                                 'success': False,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0},
+                                                                                                                                {'episode_id': 90,
+                                                                                                                                 'reset_perturbation': {'description': 'Small '
+                                                                                                                                                                       'deterministic '
+                                                                                                                                                                       'robot '
+                                                                                                                                                                       'arm '
+                                                                                                                                                                       'qpos '
+                                                                                                                                                                       'perturbation '
+                                                                                                                                                                       'applied '
+                                                                                                                                                                       'after '
+                                                                                                                                                                       'loading '
+                                                                                                                                                                       'the '
+                                                                                                                                                                       'selected '
+                                                                                                                                                                       'recovery '
+                                                                                                                                                                       'state. '
+                                                                                                                                                                       'Gripper, '
+                                                                                                                                                                       'faucet, '
+                                                                                                                                                                       'and '
+                                                                                                                                                                       'fixture '
+                                                                                                                                                                       'qpos '
+                                                                                                                                                                       'are '
+                                                                                                                                                                       'not '
+                                                                                                                                                                       'perturbed.',
+                                                                                                                                                        'qpos_indices': [4,
+                                                                                                                                                                         5,
+                                                                                                                                                                         6,
+                                                                                                                                                                         7,
+                                                                                                                                                                         8,
+                                                                                                                                                                         9,
+                                                                                                                                                                         10],
+                                                                                                                                                        'qpos_noise_clip': 0.01,
+                                                                                                                                                        'qpos_noise_std': 0.005,
+                                                                                                                                                        'seed': 20260621,
+                                                                                                                                                        'type': 'qpos_noise'},
+                                                                                                                                 'reset_state_index': 57,
+                                                                                                                                 'steps': 315,
+                                                                                                                                 'success': True,
+                                                                                                                                 'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                                 'task_id': 0}],
+                                                                                                                    'episodes': 10,
+                                                                                                                    'inference': 'tasks.robocasa_bc5.inference',
+                                                                                                                    'manifest': 'data/autorobobench/robocasa_faucet_peak_manifest.json',
+                                                                                                                    'manifest_track': 'robocasa_faucet_peak',
+                                                                                                                    'max_steps': 400,
+                                                                                                                    'parallel_eval': {'elapsed_seconds': 174.25820579985157,
+                                                                                                                                      'worker_results': [{'episodes': 2,
+                                                                                                                                                          'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_source_10x5_parallel/result_worker_000.json',
+                                                                                                                                                          'success_rate': 1.0,
+                                                                                                                                                          'successes': 2},
+                                                                                                                                                         {'episodes': 2,
+                                                                                                                                                          'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_source_10x5_parallel/result_worker_001.json',
+                                                                                                                                                          'success_rate': 0.5,
+                                                                                                                                                          'successes': 1},
+                                                                                                                                                         {'episodes': 2,
+                                                                                                                                                          'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_source_10x5_parallel/result_worker_002.json',
+                                                                                                                                                          'success_rate': 0.0,
+                                                                                                                                                          'successes': 0},
+                                                                                                                                                         {'episodes': 2,
+                                                                                                                                                          'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_source_10x5_parallel/result_worker_003.json',
+                                                                                                                                                          'success_rate': 0.5,
+                                                                                                                                                          'successes': 1},
+                                                                                                                                                         {'episodes': 2,
+                                                                                                                                                          'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_source_10x5_parallel/result_worker_004.json',
+                                                                                                                                                          'success_rate': 1.0,
+                                                                                                                                                          'successes': 2}],
+                                                                                                                                      'workers': 5},
+                                                                                                                    'per_task': {'TurnOnSinkFaucet': {'episodes': 10,
+                                                                                                                                                      'success_rate': 0.6,
+                                                                                                                                                      'successes': 6}},
+                                                                                                                    'split': 'data/autorobobench/robocasa_faucet_peak_splits.json',
+                                                                                                                    'split_track': 'robocasa_faucet_peak',
+                                                                                                                    'success_rate': 0.6,
+                                                                                                                    'successes': 6,
+                                                                                                                    'track': 'robocasa_bc5'},
+ 'data/autorobobench/pretrained_policy_evals/robocasa_faucet_direct_bc_wm_aggressive_eval_10x5.json': {'checkpoint': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/policy_best.pt',
+                                                                                                       'commit_steps': 16,
+                                                                                                       'details': [{'episode_id': 2,
+                                                                                                                    'reset_perturbation': {'description': 'Small '
+                                                                                                                                                          'deterministic '
+                                                                                                                                                          'robot '
+                                                                                                                                                          'arm '
+                                                                                                                                                          'qpos '
+                                                                                                                                                          'perturbation '
+                                                                                                                                                          'applied '
+                                                                                                                                                          'after '
+                                                                                                                                                          'loading '
+                                                                                                                                                          'the '
+                                                                                                                                                          'selected '
+                                                                                                                                                          'recovery '
+                                                                                                                                                          'state. '
+                                                                                                                                                          'Gripper, '
+                                                                                                                                                          'faucet, '
+                                                                                                                                                          'and '
+                                                                                                                                                          'fixture '
+                                                                                                                                                          'qpos '
+                                                                                                                                                          'are '
+                                                                                                                                                          'not '
+                                                                                                                                                          'perturbed.',
+                                                                                                                                           'qpos_indices': [4,
+                                                                                                                                                            5,
+                                                                                                                                                            6,
+                                                                                                                                                            7,
+                                                                                                                                                            8,
+                                                                                                                                                            9,
+                                                                                                                                                            10],
+                                                                                                                                           'qpos_noise_clip': 0.01,
+                                                                                                                                           'qpos_noise_std': 0.005,
+                                                                                                                                           'seed': 20260621,
+                                                                                                                                           'type': 'qpos_noise'},
+                                                                                                                    'reset_state_index': 79,
+                                                                                                                    'steps': 400,
+                                                                                                                    'success': False,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 15,
+                                                                                                                    'steps': 192,
+                                                                                                                    'success': True,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 75,
+                                                                                                                    'steps': 400,
+                                                                                                                    'success': False,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 65,
+                                                                                                                    'steps': 266,
+                                                                                                                    'success': True,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 60,
+                                                                                                                    'steps': 400,
+                                                                                                                    'success': False,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 62,
+                                                                                                                    'steps': 226,
+                                                                                                                    'success': True,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 51,
+                                                                                                                    'steps': 400,
+                                                                                                                    'success': False,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 54,
+                                                                                                                    'reset_perturbation': {'description': 'Small '
+                                                                                                                                                          'deterministic '
+                                                                                                                                                          'robot '
+                                                                                                                                                          'arm '
+                                                                                                                                                          'qpos '
+                                                                                                                                                          'perturbation '
+                                                                                                                                                          'applied '
+                                                                                                                                                          'after '
+                                                                                                                                                          'loading '
+                                                                                                                                                          'the '
+                                                                                                                                                          'selected '
+                                                                                                                                                          'recovery '
+                                                                                                                                                          'state. '
+                                                                                                                                                          'Gripper, '
+                                                                                                                                                          'faucet, '
+                                                                                                                                                          'and '
+                                                                                                                                                          'fixture '
+                                                                                                                                                          'qpos '
+                                                                                                                                                          'are '
+                                                                                                                                                          'not '
+                                                                                                                                                          'perturbed.',
+                                                                                                                                           'qpos_indices': [4,
+                                                                                                                                                            5,
+                                                                                                                                                            6,
+                                                                                                                                                            7,
+                                                                                                                                                            8,
+                                                                                                                                                            9,
+                                                                                                                                                            10],
+                                                                                                                                           'qpos_noise_clip': 0.01,
+                                                                                                                                           'qpos_noise_std': 0.005,
+                                                                                                                                           'seed': 20260621,
+                                                                                                                                           'type': 'qpos_noise'},
+                                                                                                                    'reset_state_index': 109,
+                                                                                                                    'steps': 400,
+                                                                                                                    'success': False,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 82,
+                                                                                                                    'steps': 400,
+                                                                                                                    'success': False,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0},
+                                                                                                                   {'episode_id': 90,
+                                                                                                                    'reset_perturbation': {'description': 'Small '
+                                                                                                                                                          'deterministic '
+                                                                                                                                                          'robot '
+                                                                                                                                                          'arm '
+                                                                                                                                                          'qpos '
+                                                                                                                                                          'perturbation '
+                                                                                                                                                          'applied '
+                                                                                                                                                          'after '
+                                                                                                                                                          'loading '
+                                                                                                                                                          'the '
+                                                                                                                                                          'selected '
+                                                                                                                                                          'recovery '
+                                                                                                                                                          'state. '
+                                                                                                                                                          'Gripper, '
+                                                                                                                                                          'faucet, '
+                                                                                                                                                          'and '
+                                                                                                                                                          'fixture '
+                                                                                                                                                          'qpos '
+                                                                                                                                                          'are '
+                                                                                                                                                          'not '
+                                                                                                                                                          'perturbed.',
+                                                                                                                                           'qpos_indices': [4,
+                                                                                                                                                            5,
+                                                                                                                                                            6,
+                                                                                                                                                            7,
+                                                                                                                                                            8,
+                                                                                                                                                            9,
+                                                                                                                                                            10],
+                                                                                                                                           'qpos_noise_clip': 0.01,
+                                                                                                                                           'qpos_noise_std': 0.005,
+                                                                                                                                           'seed': 20260621,
+                                                                                                                                           'type': 'qpos_noise'},
+                                                                                                                    'reset_state_index': 57,
+                                                                                                                    'steps': 326,
+                                                                                                                    'success': True,
+                                                                                                                    'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                    'task_id': 0}],
+                                                                                                       'episodes': 10,
+                                                                                                       'inference': 'tasks.robocasa_bc5.inference',
+                                                                                                       'manifest': 'data/autorobobench/robocasa_faucet_peak_manifest.json',
+                                                                                                       'manifest_track': 'robocasa_faucet_peak',
+                                                                                                       'max_steps': 400,
+                                                                                                       'parallel_eval': {'elapsed_seconds': 177.6701549179852,
+                                                                                                                         'worker_results': [{'episodes': 2,
+                                                                                                                                             'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_improved_10x5_parallel/result_worker_000.json',
+                                                                                                                                             'success_rate': 0.5,
+                                                                                                                                             'successes': 1},
+                                                                                                                                            {'episodes': 2,
+                                                                                                                                             'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_improved_10x5_parallel/result_worker_001.json',
+                                                                                                                                             'success_rate': 0.5,
+                                                                                                                                             'successes': 1},
+                                                                                                                                            {'episodes': 2,
+                                                                                                                                             'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_improved_10x5_parallel/result_worker_002.json',
+                                                                                                                                             'success_rate': 0.0,
+                                                                                                                                             'successes': 0},
+                                                                                                                                            {'episodes': 2,
+                                                                                                                                             'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_improved_10x5_parallel/result_worker_003.json',
+                                                                                                                                             'success_rate': 0.5,
+                                                                                                                                             'successes': 1},
+                                                                                                                                            {'episodes': 2,
+                                                                                                                                             'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_5min/eval_improved_10x5_parallel/result_worker_004.json',
+                                                                                                                                             'success_rate': 0.5,
+                                                                                                                                             'successes': 1}],
+                                                                                                                         'workers': 5},
+                                                                                                       'per_task': {'TurnOnSinkFaucet': {'episodes': 10,
+                                                                                                                                         'success_rate': 0.4,
+                                                                                                                                         'successes': 4}},
+                                                                                                       'split': 'data/autorobobench/robocasa_faucet_peak_splits.json',
+                                                                                                       'split_track': 'robocasa_faucet_peak',
+                                                                                                       'success_rate': 0.4,
+                                                                                                       'successes': 4,
+                                                                                                       'track': 'robocasa_bc5'},
+ 'data/autorobobench/pretrained_policy_evals/robocasa_faucet_direct_bc_wm_conservative_eval_10x5.json': {'checkpoint': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_conservative_5min/policy_best.pt',
+                                                                                                         'commit_steps': 16,
+                                                                                                         'details': [{'episode_id': 2,
+                                                                                                                      'reset_perturbation': {'description': 'Small '
+                                                                                                                                                            'deterministic '
+                                                                                                                                                            'robot '
+                                                                                                                                                            'arm '
+                                                                                                                                                            'qpos '
+                                                                                                                                                            'perturbation '
+                                                                                                                                                            'applied '
+                                                                                                                                                            'after '
+                                                                                                                                                            'loading '
+                                                                                                                                                            'the '
+                                                                                                                                                            'selected '
+                                                                                                                                                            'recovery '
+                                                                                                                                                            'state. '
+                                                                                                                                                            'Gripper, '
+                                                                                                                                                            'faucet, '
+                                                                                                                                                            'and '
+                                                                                                                                                            'fixture '
+                                                                                                                                                            'qpos '
+                                                                                                                                                            'are '
+                                                                                                                                                            'not '
+                                                                                                                                                            'perturbed.',
+                                                                                                                                             'qpos_indices': [4,
+                                                                                                                                                              5,
+                                                                                                                                                              6,
+                                                                                                                                                              7,
+                                                                                                                                                              8,
+                                                                                                                                                              9,
+                                                                                                                                                              10],
+                                                                                                                                             'qpos_noise_clip': 0.01,
+                                                                                                                                             'qpos_noise_std': 0.005,
+                                                                                                                                             'seed': 20260621,
+                                                                                                                                             'type': 'qpos_noise'},
+                                                                                                                      'reset_state_index': 79,
+                                                                                                                      'steps': 213,
+                                                                                                                      'success': True,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 15,
+                                                                                                                      'steps': 184,
+                                                                                                                      'success': True,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 75,
+                                                                                                                      'steps': 400,
+                                                                                                                      'success': False,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 65,
+                                                                                                                      'steps': 251,
+                                                                                                                      'success': True,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 60,
+                                                                                                                      'steps': 226,
+                                                                                                                      'success': True,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 62,
+                                                                                                                      'steps': 400,
+                                                                                                                      'success': False,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 51,
+                                                                                                                      'steps': 252,
+                                                                                                                      'success': True,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 54,
+                                                                                                                      'reset_perturbation': {'description': 'Small '
+                                                                                                                                                            'deterministic '
+                                                                                                                                                            'robot '
+                                                                                                                                                            'arm '
+                                                                                                                                                            'qpos '
+                                                                                                                                                            'perturbation '
+                                                                                                                                                            'applied '
+                                                                                                                                                            'after '
+                                                                                                                                                            'loading '
+                                                                                                                                                            'the '
+                                                                                                                                                            'selected '
+                                                                                                                                                            'recovery '
+                                                                                                                                                            'state. '
+                                                                                                                                                            'Gripper, '
+                                                                                                                                                            'faucet, '
+                                                                                                                                                            'and '
+                                                                                                                                                            'fixture '
+                                                                                                                                                            'qpos '
+                                                                                                                                                            'are '
+                                                                                                                                                            'not '
+                                                                                                                                                            'perturbed.',
+                                                                                                                                             'qpos_indices': [4,
+                                                                                                                                                              5,
+                                                                                                                                                              6,
+                                                                                                                                                              7,
+                                                                                                                                                              8,
+                                                                                                                                                              9,
+                                                                                                                                                              10],
+                                                                                                                                             'qpos_noise_clip': 0.01,
+                                                                                                                                             'qpos_noise_std': 0.005,
+                                                                                                                                             'seed': 20260621,
+                                                                                                                                             'type': 'qpos_noise'},
+                                                                                                                      'reset_state_index': 109,
+                                                                                                                      'steps': 400,
+                                                                                                                      'success': False,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 82,
+                                                                                                                      'steps': 400,
+                                                                                                                      'success': False,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0},
+                                                                                                                     {'episode_id': 90,
+                                                                                                                      'reset_perturbation': {'description': 'Small '
+                                                                                                                                                            'deterministic '
+                                                                                                                                                            'robot '
+                                                                                                                                                            'arm '
+                                                                                                                                                            'qpos '
+                                                                                                                                                            'perturbation '
+                                                                                                                                                            'applied '
+                                                                                                                                                            'after '
+                                                                                                                                                            'loading '
+                                                                                                                                                            'the '
+                                                                                                                                                            'selected '
+                                                                                                                                                            'recovery '
+                                                                                                                                                            'state. '
+                                                                                                                                                            'Gripper, '
+                                                                                                                                                            'faucet, '
+                                                                                                                                                            'and '
+                                                                                                                                                            'fixture '
+                                                                                                                                                            'qpos '
+                                                                                                                                                            'are '
+                                                                                                                                                            'not '
+                                                                                                                                                            'perturbed.',
+                                                                                                                                             'qpos_indices': [4,
+                                                                                                                                                              5,
+                                                                                                                                                              6,
+                                                                                                                                                              7,
+                                                                                                                                                              8,
+                                                                                                                                                              9,
+                                                                                                                                                              10],
+                                                                                                                                             'qpos_noise_clip': 0.01,
+                                                                                                                                             'qpos_noise_std': 0.005,
+                                                                                                                                             'seed': 20260621,
+                                                                                                                                             'type': 'qpos_noise'},
+                                                                                                                      'reset_state_index': 57,
+                                                                                                                      'steps': 328,
+                                                                                                                      'success': True,
+                                                                                                                      'task_alias': 'TurnOnSinkFaucet',
+                                                                                                                      'task_id': 0}],
+                                                                                                         'episodes': 10,
+                                                                                                         'inference': 'tasks.robocasa_bc5.inference',
+                                                                                                         'manifest': 'data/autorobobench/robocasa_faucet_peak_manifest.json',
+                                                                                                         'manifest_track': 'robocasa_faucet_peak',
+                                                                                                         'max_steps': 400,
+                                                                                                         'parallel_eval': {'elapsed_seconds': 171.84190595895052,
+                                                                                                                           'worker_results': [{'episodes': 2,
+                                                                                                                                               'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_conservative_5min/eval_improved_10x5_parallel/result_worker_000.json',
+                                                                                                                                               'success_rate': 0.5,
+                                                                                                                                               'successes': 1},
+                                                                                                                                              {'episodes': 2,
+                                                                                                                                               'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_conservative_5min/eval_improved_10x5_parallel/result_worker_001.json',
+                                                                                                                                               'success_rate': 1.0,
+                                                                                                                                               'successes': 2},
+                                                                                                                                              {'episodes': 2,
+                                                                                                                                               'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_conservative_5min/eval_improved_10x5_parallel/result_worker_002.json',
+                                                                                                                                               'success_rate': 0.0,
+                                                                                                                                               'successes': 0},
+                                                                                                                                              {'episodes': 2,
+                                                                                                                                               'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_conservative_5min/eval_improved_10x5_parallel/result_worker_003.json',
+                                                                                                                                               'success_rate': 0.5,
+                                                                                                                                               'successes': 1},
+                                                                                                                                              {'episodes': 2,
+                                                                                                                                               'path': 'runs/autorobobench/robocasa_wm_policy_improvement/faucet_direct_bc_wm_conservative_5min/eval_improved_10x5_parallel/result_worker_004.json',
+                                                                                                                                               'success_rate': 1.0,
+                                                                                                                                               'successes': 2}],
+                                                                                                                           'workers': 5},
+                                                                                                         'per_task': {'TurnOnSinkFaucet': {'episodes': 10,
+                                                                                                                                           'success_rate': 0.6,
+                                                                                                                                           'successes': 6}},
+                                                                                                         'split': 'data/autorobobench/robocasa_faucet_peak_splits.json',
+                                                                                                         'split_track': 'robocasa_faucet_peak',
+                                                                                                         'success_rate': 0.6,
+                                                                                                         'successes': 6,
+                                                                                                         'track': 'robocasa_bc5'},
+ 'data/autorobobench/robocasa_bc5_splits.json': {'benchmark': 'autorobobench-v0',
+                                                 'eval_episodes_per_task': 10,
+                                                 'manifest': 'data/robocasa5/manifest.json',
+                                                 'notes': ['Splits are frozen by episode id and shared across all five '
+                                                           'RoboCasa seed tasks.',
+                                                           'Training entrypoints may use a prefix of train_episode_ids '
+                                                           'for quick dev runs, but eval must use eval_episode_ids.'],
+                                                 'policy_train_episodes_per_task': 80,
+                                                 'seed': 20260618,
+                                                 'tasks': [{'alias': 'OpenCabinet',
+                                                            'eval_episode_ids': [90,
+                                                                                 91,
+                                                                                 92,
+                                                                                 93,
+                                                                                 94,
+                                                                                 95,
+                                                                                 96,
+                                                                                 97,
+                                                                                 98,
+                                                                                 99],
+                                                            'task_id': 0,
+                                                            'train_episode_ids': [0,
+                                                                                  1,
+                                                                                  2,
+                                                                                  3,
+                                                                                  4,
+                                                                                  5,
+                                                                                  6,
+                                                                                  7,
+                                                                                  8,
+                                                                                  9,
+                                                                                  10,
+                                                                                  11,
+                                                                                  12,
+                                                                                  13,
+                                                                                  14,
+                                                                                  15,
+                                                                                  16,
+                                                                                  17,
+                                                                                  18,
+                                                                                  19,
+                                                                                  20,
+                                                                                  21,
+                                                                                  22,
+                                                                                  23,
+                                                                                  24,
+                                                                                  25,
+                                                                                  26,
+                                                                                  27,
+                                                                                  28,
+                                                                                  29,
+                                                                                  30,
+                                                                                  31,
+                                                                                  32,
+                                                                                  33,
+                                                                                  34,
+                                                                                  35,
+                                                                                  36,
+                                                                                  37,
+                                                                                  38,
+                                                                                  39,
+                                                                                  40,
+                                                                                  41,
+                                                                                  42,
+                                                                                  43,
+                                                                                  44,
+                                                                                  45,
+                                                                                  46,
+                                                                                  47,
+                                                                                  48,
+                                                                                  49,
+                                                                                  50,
+                                                                                  51,
+                                                                                  52,
+                                                                                  53,
+                                                                                  54,
+                                                                                  55,
+                                                                                  56,
+                                                                                  57,
+                                                                                  58,
+                                                                                  59,
+                                                                                  60,
+                                                                                  61,
+                                                                                  62,
+                                                                                  63,
+                                                                                  64,
+                                                                                  65,
+                                                                                  66,
+                                                                                  67,
+                                                                                  68,
+                                                                                  69,
+                                                                                  70,
+                                                                                  71,
+                                                                                  72,
+                                                                                  73,
+                                                                                  74,
+                                                                                  75,
+                                                                                  76,
+                                                                                  77,
+                                                                                  78,
+                                                                                  79],
+                                                            'val_episode_ids': [80,
+                                                                                81,
+                                                                                82,
+                                                                                83,
+                                                                                84,
+                                                                                85,
+                                                                                86,
+                                                                                87,
+                                                                                88,
+                                                                                89]},
+                                                           {'alias': 'CloseDrawer',
+                                                            'eval_episode_ids': [90,
+                                                                                 91,
+                                                                                 92,
+                                                                                 93,
+                                                                                 94,
+                                                                                 95,
+                                                                                 96,
+                                                                                 97,
+                                                                                 98,
+                                                                                 99],
+                                                            'task_id': 1,
+                                                            'train_episode_ids': [0,
+                                                                                  1,
+                                                                                  2,
+                                                                                  3,
+                                                                                  4,
+                                                                                  5,
+                                                                                  6,
+                                                                                  7,
+                                                                                  8,
+                                                                                  9,
+                                                                                  10,
+                                                                                  11,
+                                                                                  12,
+                                                                                  13,
+                                                                                  14,
+                                                                                  15,
+                                                                                  16,
+                                                                                  17,
+                                                                                  18,
+                                                                                  19,
+                                                                                  20,
+                                                                                  21,
+                                                                                  22,
+                                                                                  23,
+                                                                                  24,
+                                                                                  25,
+                                                                                  26,
+                                                                                  27,
+                                                                                  28,
+                                                                                  29,
+                                                                                  30,
+                                                                                  31,
+                                                                                  32,
+                                                                                  33,
+                                                                                  34,
+                                                                                  35,
+                                                                                  36,
+                                                                                  37,
+                                                                                  38,
+                                                                                  39,
+                                                                                  40,
+                                                                                  41,
+                                                                                  42,
+                                                                                  43,
+                                                                                  44,
+                                                                                  45,
+                                                                                  46,
+                                                                                  47,
+                                                                                  48,
+                                                                                  49,
+                                                                                  50,
+                                                                                  51,
+                                                                                  52,
+                                                                                  53,
+                                                                                  54,
+                                                                                  55,
+                                                                                  56,
+                                                                                  57,
+                                                                                  58,
+                                                                                  59,
+                                                                                  60,
+                                                                                  61,
+                                                                                  62,
+                                                                                  63,
+                                                                                  64,
+                                                                                  65,
+                                                                                  66,
+                                                                                  67,
+                                                                                  68,
+                                                                                  69,
+                                                                                  70,
+                                                                                  71,
+                                                                                  72,
+                                                                                  73,
+                                                                                  74,
+                                                                                  75,
+                                                                                  76,
+                                                                                  77,
+                                                                                  78,
+                                                                                  79],
+                                                            'val_episode_ids': [80,
+                                                                                81,
+                                                                                82,
+                                                                                83,
+                                                                                84,
+                                                                                85,
+                                                                                86,
+                                                                                87,
+                                                                                88,
+                                                                                89]},
+                                                           {'alias': 'CloseFridge',
+                                                            'eval_episode_ids': [90,
+                                                                                 91,
+                                                                                 92,
+                                                                                 93,
+                                                                                 94,
+                                                                                 95,
+                                                                                 96,
+                                                                                 97,
+                                                                                 98,
+                                                                                 99],
+                                                            'task_id': 2,
+                                                            'train_episode_ids': [0,
+                                                                                  1,
+                                                                                  2,
+                                                                                  3,
+                                                                                  4,
+                                                                                  5,
+                                                                                  6,
+                                                                                  7,
+                                                                                  8,
+                                                                                  9,
+                                                                                  10,
+                                                                                  11,
+                                                                                  12,
+                                                                                  13,
+                                                                                  14,
+                                                                                  15,
+                                                                                  16,
+                                                                                  17,
+                                                                                  18,
+                                                                                  19,
+                                                                                  20,
+                                                                                  21,
+                                                                                  22,
+                                                                                  23,
+                                                                                  24,
+                                                                                  25,
+                                                                                  26,
+                                                                                  27,
+                                                                                  28,
+                                                                                  29,
+                                                                                  30,
+                                                                                  31,
+                                                                                  32,
+                                                                                  33,
+                                                                                  34,
+                                                                                  35,
+                                                                                  36,
+                                                                                  37,
+                                                                                  38,
+                                                                                  39,
+                                                                                  40,
+                                                                                  41,
+                                                                                  42,
+                                                                                  43,
+                                                                                  44,
+                                                                                  45,
+                                                                                  46,
+                                                                                  47,
+                                                                                  48,
+                                                                                  49,
+                                                                                  50,
+                                                                                  51,
+                                                                                  52,
+                                                                                  53,
+                                                                                  54,
+                                                                                  55,
+                                                                                  56,
+                                                                                  57,
+                                                                                  58,
+                                                                                  59,
+                                                                                  60,
+                                                                                  61,
+                                                                                  62,
+                                                                                  63,
+                                                                                  64,
+                                                                                  65,
+                                                                                  66,
+                                                                                  67,
+                                                                                  68,
+                                                                                  69,
+                                                                                  70,
+                                                                                  71,
+                                                                                  72,
+                                                                                  73,
+                                                                                  74,
+                                                                                  75,
+                                                                                  76,
+                                                                                  77,
+                                                                                  78,
+                                                                                  79],
+                                                            'val_episode_ids': [80,
+                                                                                81,
+                                                                                82,
+                                                                                83,
+                                                                                84,
+                                                                                85,
+                                                                                86,
+                                                                                87,
+                                                                                88,
+                                                                                89]},
+                                                           {'alias': 'TurnOffStove',
+                                                            'eval_episode_ids': [90,
+                                                                                 91,
+                                                                                 92,
+                                                                                 93,
+                                                                                 94,
+                                                                                 95,
+                                                                                 96,
+                                                                                 97,
+                                                                                 98,
+                                                                                 99],
+                                                            'task_id': 3,
+                                                            'train_episode_ids': [0,
+                                                                                  1,
+                                                                                  2,
+                                                                                  3,
+                                                                                  4,
+                                                                                  5,
+                                                                                  6,
+                                                                                  7,
+                                                                                  8,
+                                                                                  9,
+                                                                                  10,
+                                                                                  11,
+                                                                                  12,
+                                                                                  13,
+                                                                                  14,
+                                                                                  15,
+                                                                                  16,
+                                                                                  17,
+                                                                                  18,
+                                                                                  19,
+                                                                                  20,
+                                                                                  21,
+                                                                                  22,
+                                                                                  23,
+                                                                                  24,
+                                                                                  25,
+                                                                                  26,
+                                                                                  27,
+                                                                                  28,
+                                                                                  29,
+                                                                                  30,
+                                                                                  31,
+                                                                                  32,
+                                                                                  33,
+                                                                                  34,
+                                                                                  35,
+                                                                                  36,
+                                                                                  37,
+                                                                                  38,
+                                                                                  39,
+                                                                                  40,
+                                                                                  41,
+                                                                                  42,
+                                                                                  43,
+                                                                                  44,
+                                                                                  45,
+                                                                                  46,
+                                                                                  47,
+                                                                                  48,
+                                                                                  49,
+                                                                                  50,
+                                                                                  51,
+                                                                                  52,
+                                                                                  53,
+                                                                                  54,
+                                                                                  55,
+                                                                                  56,
+                                                                                  57,
+                                                                                  58,
+                                                                                  59,
+                                                                                  60,
+                                                                                  61,
+                                                                                  62,
+                                                                                  63,
+                                                                                  64,
+                                                                                  65,
+                                                                                  66,
+                                                                                  67,
+                                                                                  68,
+                                                                                  69,
+                                                                                  70,
+                                                                                  71,
+                                                                                  72,
+                                                                                  73,
+                                                                                  74,
+                                                                                  75,
+                                                                                  76,
+                                                                                  77,
+                                                                                  78,
+                                                                                  79],
+                                                            'val_episode_ids': [80,
+                                                                                81,
+                                                                                82,
+                                                                                83,
+                                                                                84,
+                                                                                85,
+                                                                                86,
+                                                                                87,
+                                                                                88,
+                                                                                89]},
+                                                           {'alias': 'PickPlaceCounterToCabinet',
+                                                            'eval_episode_ids': [90,
+                                                                                 91,
+                                                                                 92,
+                                                                                 93,
+                                                                                 94,
+                                                                                 95,
+                                                                                 96,
+                                                                                 97,
+                                                                                 98,
+                                                                                 99],
+                                                            'task_id': 4,
+                                                            'train_episode_ids': [0,
+                                                                                  1,
+                                                                                  2,
+                                                                                  3,
+                                                                                  4,
+                                                                                  5,
+                                                                                  6,
+                                                                                  7,
+                                                                                  8,
+                                                                                  9,
+                                                                                  10,
+                                                                                  11,
+                                                                                  12,
+                                                                                  13,
+                                                                                  14,
+                                                                                  15,
+                                                                                  16,
+                                                                                  17,
+                                                                                  18,
+                                                                                  19,
+                                                                                  20,
+                                                                                  21,
+                                                                                  22,
+                                                                                  23,
+                                                                                  24,
+                                                                                  25,
+                                                                                  26,
+                                                                                  27,
+                                                                                  28,
+                                                                                  29,
+                                                                                  30,
+                                                                                  31,
+                                                                                  32,
+                                                                                  33,
+                                                                                  34,
+                                                                                  35,
+                                                                                  36,
+                                                                                  37,
+                                                                                  38,
+                                                                                  39,
+                                                                                  40,
+                                                                                  41,
+                                                                                  42,
+                                                                                  43,
+                                                                                  44,
+                                                                                  45,
+                                                                                  46,
+                                                                                  47,
+                                                                                  48,
+                                                                                  49,
+                                                                                  50,
+                                                                                  51,
+                                                                                  52,
+                                                                                  53,
+                                                                                  54,
+                                                                                  55,
+                                                                                  56,
+                                                                                  57,
+                                                                                  58,
+                                                                                  59,
+                                                                                  60,
+                                                                                  61,
+                                                                                  62,
+                                                                                  63,
+                                                                                  64,
+                                                                                  65,
+                                                                                  66,
+                                                                                  67,
+                                                                                  68,
+                                                                                  69,
+                                                                                  70,
+                                                                                  71,
+                                                                                  72,
+                                                                                  73,
+                                                                                  74,
+                                                                                  75,
+                                                                                  76,
+                                                                                  77,
+                                                                                  78,
+                                                                                  79],
+                                                            'val_episode_ids': [80,
+                                                                                81,
+                                                                                82,
+                                                                                83,
+                                                                                84,
+                                                                                85,
+                                                                                86,
+                                                                                87,
+                                                                                88,
+                                                                                89]}],
+                                                 'track': 'robocasa_bc5',
+                                                 'val_episodes_per_task': 10},
+ 'data/autorobobench/robocasa_choose_measuring_cup_language_manifest.json': {'action_dim': 12,
+                                                                             'benchmark': 'autorobobench-v0',
+                                                                             'notes': ['Language-conditioned single '
+                                                                                       'RoboCasa environment split '
+                                                                                       'into four prompt variants.',
+                                                                                       'Every alias points to the same '
+                                                                                       'ChooseMeasuringCup dataset but '
+                                                                                       'uses only episodes whose '
+                                                                                       'language matches the alias.',
+                                                                                       'The SmolVLM flow baseline '
+                                                                                       'receives the alias description '
+                                                                                       'as task text.'],
+                                                                             'policy_demos_per_variant': 16,
+                                                                             'source': 'human',
+                                                                             'split': 'pretrain',
+                                                                             'suite': 'robocasa',
+                                                                             'task_count': 4,
+                                                                             'tasks': [{'alias': 'ChooseMeasuringCupLeftLarger',
+                                                                                        'available_demos': 32,
+                                                                                        'available_views': ['robot0_agentview_left',
+                                                                                                            'robot0_agentview_right'],
+                                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/composite/ChooseMeasuringCup/20250718/lerobot',
+                                                                                        'description': 'Open the left '
+                                                                                                       'drawer and '
+                                                                                                       'place the '
+                                                                                                       'larger '
+                                                                                                       'measuring cup '
+                                                                                                       'on the '
+                                                                                                       'counter.',
+                                                                                        'filter_key': '100_demos',
+                                                                                        'horizon': 1800,
+                                                                                        'language_condition': {'cup_size': 'larger',
+                                                                                                               'drawer_side': 'left'},
+                                                                                        'registered_demos': 100,
+                                                                                        'robocasa_task': 'ChooseMeasuringCup',
+                                                                                        'selected_demos': 16,
+                                                                                        'source': 'human',
+                                                                                        'split': 'pretrain',
+                                                                                        'task_id': 0},
+                                                                                       {'alias': 'ChooseMeasuringCupLeftSmaller',
+                                                                                        'available_demos': 22,
+                                                                                        'available_views': ['robot0_agentview_left',
+                                                                                                            'robot0_agentview_right'],
+                                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/composite/ChooseMeasuringCup/20250718/lerobot',
+                                                                                        'description': 'Open the left '
+                                                                                                       'drawer and '
+                                                                                                       'place the '
+                                                                                                       'smaller '
+                                                                                                       'measuring cup '
+                                                                                                       'on the '
+                                                                                                       'counter.',
+                                                                                        'filter_key': '100_demos',
+                                                                                        'horizon': 1800,
+                                                                                        'language_condition': {'cup_size': 'smaller',
+                                                                                                               'drawer_side': 'left'},
+                                                                                        'registered_demos': 100,
+                                                                                        'robocasa_task': 'ChooseMeasuringCup',
+                                                                                        'selected_demos': 16,
+                                                                                        'source': 'human',
+                                                                                        'split': 'pretrain',
+                                                                                        'task_id': 1},
+                                                                                       {'alias': 'ChooseMeasuringCupRightLarger',
+                                                                                        'available_demos': 31,
+                                                                                        'available_views': ['robot0_agentview_left',
+                                                                                                            'robot0_agentview_right'],
+                                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/composite/ChooseMeasuringCup/20250718/lerobot',
+                                                                                        'description': 'Open the right '
+                                                                                                       'drawer and '
+                                                                                                       'place the '
+                                                                                                       'larger '
+                                                                                                       'measuring cup '
+                                                                                                       'on the '
+                                                                                                       'counter.',
+                                                                                        'filter_key': '100_demos',
+                                                                                        'horizon': 1800,
+                                                                                        'language_condition': {'cup_size': 'larger',
+                                                                                                               'drawer_side': 'right'},
+                                                                                        'registered_demos': 100,
+                                                                                        'robocasa_task': 'ChooseMeasuringCup',
+                                                                                        'selected_demos': 16,
+                                                                                        'source': 'human',
+                                                                                        'split': 'pretrain',
+                                                                                        'task_id': 2},
+                                                                                       {'alias': 'ChooseMeasuringCupRightSmaller',
+                                                                                        'available_demos': 21,
+                                                                                        'available_views': ['robot0_agentview_left',
+                                                                                                            'robot0_agentview_right'],
+                                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/composite/ChooseMeasuringCup/20250718/lerobot',
+                                                                                        'description': 'Open the right '
+                                                                                                       'drawer and '
+                                                                                                       'place the '
+                                                                                                       'smaller '
+                                                                                                       'measuring cup '
+                                                                                                       'on the '
+                                                                                                       'counter.',
+                                                                                        'filter_key': '100_demos',
+                                                                                        'horizon': 1800,
+                                                                                        'language_condition': {'cup_size': 'smaller',
+                                                                                                               'drawer_side': 'right'},
+                                                                                        'registered_demos': 100,
+                                                                                        'robocasa_task': 'ChooseMeasuringCup',
+                                                                                        'selected_demos': 16,
+                                                                                        'source': 'human',
+                                                                                        'split': 'pretrain',
+                                                                                        'task_id': 3}],
+                                                                             'track': 'robocasa_choose_measuring_cup_language',
+                                                                             'views': ['robot0_agentview_left',
+                                                                                       'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_choose_measuring_cup_language_splits.json': {'benchmark': 'autorobobench-v0',
+                                                                           'eval_episodes_per_variant': 3,
+                                                                           'manifest': 'data/autorobobench/robocasa_choose_measuring_cup_language_manifest.json',
+                                                                           'notes': ['Frozen balanced public split '
+                                                                                     'over the four language variants.',
+                                                                                     "Each eval episode's simulator "
+                                                                                     'metadata enforces the same '
+                                                                                     'cup-size goal as the alias '
+                                                                                     'language.'],
+                                                                           'policy_train_episodes_per_variant': 16,
+                                                                           'seed': 20260620,
+                                                                           'tasks': [{'alias': 'ChooseMeasuringCupLeftLarger',
+                                                                                      'eval_episode_ids': [54, 59, 61],
+                                                                                      'language': 'Open the left '
+                                                                                                  'drawer and place '
+                                                                                                  'the larger '
+                                                                                                  'measuring cup on '
+                                                                                                  'the counter.',
+                                                                                      'task_id': 0,
+                                                                                      'train_episode_ids': [3,
+                                                                                                            8,
+                                                                                                            16,
+                                                                                                            18,
+                                                                                                            20,
+                                                                                                            23,
+                                                                                                            27,
+                                                                                                            28,
+                                                                                                            29,
+                                                                                                            30,
+                                                                                                            31,
+                                                                                                            32,
+                                                                                                            36,
+                                                                                                            42,
+                                                                                                            46,
+                                                                                                            49],
+                                                                                      'val_episode_ids': [50, 52]},
+                                                                                     {'alias': 'ChooseMeasuringCupLeftSmaller',
+                                                                                      'eval_episode_ids': [83, 84, 87],
+                                                                                      'language': 'Open the left '
+                                                                                                  'drawer and place '
+                                                                                                  'the smaller '
+                                                                                                  'measuring cup on '
+                                                                                                  'the counter.',
+                                                                                      'task_id': 1,
+                                                                                      'train_episode_ids': [0,
+                                                                                                            2,
+                                                                                                            9,
+                                                                                                            13,
+                                                                                                            19,
+                                                                                                            34,
+                                                                                                            35,
+                                                                                                            38,
+                                                                                                            39,
+                                                                                                            44,
+                                                                                                            55,
+                                                                                                            63,
+                                                                                                            64,
+                                                                                                            69,
+                                                                                                            72,
+                                                                                                            74],
+                                                                                      'val_episode_ids': [78, 81]},
+                                                                                     {'alias': 'ChooseMeasuringCupRightLarger',
+                                                                                      'eval_episode_ids': [71, 73, 76],
+                                                                                      'language': 'Open the right '
+                                                                                                  'drawer and place '
+                                                                                                  'the larger '
+                                                                                                  'measuring cup on '
+                                                                                                  'the counter.',
+                                                                                      'task_id': 2,
+                                                                                      'train_episode_ids': [1,
+                                                                                                            4,
+                                                                                                            6,
+                                                                                                            10,
+                                                                                                            14,
+                                                                                                            15,
+                                                                                                            21,
+                                                                                                            25,
+                                                                                                            26,
+                                                                                                            37,
+                                                                                                            41,
+                                                                                                            45,
+                                                                                                            47,
+                                                                                                            48,
+                                                                                                            51,
+                                                                                                            57],
+                                                                                      'val_episode_ids': [58, 60]},
+                                                                                     {'alias': 'ChooseMeasuringCupRightSmaller',
+                                                                                      'eval_episode_ids': [98,
+                                                                                                           102,
+                                                                                                           105],
+                                                                                      'language': 'Open the right '
+                                                                                                  'drawer and place '
+                                                                                                  'the smaller '
+                                                                                                  'measuring cup on '
+                                                                                                  'the counter.',
+                                                                                      'task_id': 3,
+                                                                                      'train_episode_ids': [5,
+                                                                                                            7,
+                                                                                                            11,
+                                                                                                            12,
+                                                                                                            17,
+                                                                                                            22,
+                                                                                                            24,
+                                                                                                            33,
+                                                                                                            40,
+                                                                                                            43,
+                                                                                                            53,
+                                                                                                            56,
+                                                                                                            62,
+                                                                                                            68,
+                                                                                                            79,
+                                                                                                            80],
+                                                                                      'val_episode_ids': [86, 89]}],
+                                                                           'track': 'robocasa_choose_measuring_cup_language',
+                                                                           'val_episodes_per_variant': 2},
+ 'data/autorobobench/robocasa_close_cabinet_peak_manifest.json': {'action_dim': 12,
+                                                                  'benchmark': 'autorobobench-v0',
+                                                                  'notes': ['Single-task quick peak experiment for an '
+                                                                            'easier RoboCasa contact task.',
+                                                                            'All available target-task RGB videos and '
+                                                                            'action trajectories are available for '
+                                                                            'training.',
+                                                                            'The task_id is local to this single-task '
+                                                                            'track so BC-5 policy embeddings stay '
+                                                                            'compact.'],
+                                                                  'policy_demos_per_task': 105,
+                                                                  'source': 'human',
+                                                                  'split': 'pretrain',
+                                                                  'suite': 'robocasa',
+                                                                  'task_count': 1,
+                                                                  'tasks': [{'alias': 'CloseCabinet',
+                                                                             'available_demos': 105,
+                                                                             'available_views': ['robot0_agentview_left',
+                                                                                                 'robot0_agentview_right'],
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseCabinet/20250819/lerobot',
+                                                                             'description': 'Close a cabinet.',
+                                                                             'filter_key': '100_demos',
+                                                                             'horizon': 750,
+                                                                             'registered_demos': 105,
+                                                                             'robocasa_task': 'CloseCabinet',
+                                                                             'selected_demos': 105,
+                                                                             'source': 'human',
+                                                                             'split': 'pretrain',
+                                                                             'task_id': 0}],
+                                                                  'track': 'robocasa_close_cabinet_peak',
+                                                                  'views': ['robot0_agentview_left',
+                                                                            'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_close_cabinet_peak_splits.json': {'all_target_trajectory_data_available': True,
+                                                                'benchmark': 'autorobobench-v0',
+                                                                'eval_episodes_per_task': 10,
+                                                                'manifest': 'data/autorobobench/robocasa_close_cabinet_peak_manifest.json',
+                                                                'policy_train_episodes_per_task': 105,
+                                                                'seed': 20260621,
+                                                                'tasks': [{'alias': 'CloseCabinet',
+                                                                           'eval_episode_ids': [0,
+                                                                                                1,
+                                                                                                2,
+                                                                                                3,
+                                                                                                4,
+                                                                                                5,
+                                                                                                6,
+                                                                                                7,
+                                                                                                8,
+                                                                                                9],
+                                                                           'paired_train_episode_ids': [0,
+                                                                                                        1,
+                                                                                                        2,
+                                                                                                        3,
+                                                                                                        4,
+                                                                                                        5,
+                                                                                                        6,
+                                                                                                        7,
+                                                                                                        8,
+                                                                                                        9,
+                                                                                                        10,
+                                                                                                        11,
+                                                                                                        12,
+                                                                                                        13,
+                                                                                                        14,
+                                                                                                        15,
+                                                                                                        16,
+                                                                                                        17,
+                                                                                                        18,
+                                                                                                        19,
+                                                                                                        20,
+                                                                                                        21,
+                                                                                                        22,
+                                                                                                        23,
+                                                                                                        24,
+                                                                                                        25,
+                                                                                                        26,
+                                                                                                        27,
+                                                                                                        28,
+                                                                                                        29,
+                                                                                                        30,
+                                                                                                        31,
+                                                                                                        32,
+                                                                                                        33,
+                                                                                                        34,
+                                                                                                        35,
+                                                                                                        36,
+                                                                                                        37,
+                                                                                                        38,
+                                                                                                        39,
+                                                                                                        40,
+                                                                                                        41,
+                                                                                                        42,
+                                                                                                        43,
+                                                                                                        44,
+                                                                                                        45,
+                                                                                                        46,
+                                                                                                        47,
+                                                                                                        48,
+                                                                                                        49,
+                                                                                                        50,
+                                                                                                        51,
+                                                                                                        52,
+                                                                                                        53,
+                                                                                                        54,
+                                                                                                        55,
+                                                                                                        56,
+                                                                                                        57,
+                                                                                                        58,
+                                                                                                        59,
+                                                                                                        60,
+                                                                                                        61,
+                                                                                                        62,
+                                                                                                        63,
+                                                                                                        64,
+                                                                                                        65,
+                                                                                                        66,
+                                                                                                        67,
+                                                                                                        68,
+                                                                                                        69,
+                                                                                                        70,
+                                                                                                        71,
+                                                                                                        72,
+                                                                                                        73,
+                                                                                                        74,
+                                                                                                        75,
+                                                                                                        76,
+                                                                                                        77,
+                                                                                                        78,
+                                                                                                        79,
+                                                                                                        80,
+                                                                                                        81,
+                                                                                                        82,
+                                                                                                        83,
+                                                                                                        84,
+                                                                                                        85,
+                                                                                                        86,
+                                                                                                        87,
+                                                                                                        88,
+                                                                                                        89,
+                                                                                                        90,
+                                                                                                        91,
+                                                                                                        92,
+                                                                                                        93,
+                                                                                                        94,
+                                                                                                        95,
+                                                                                                        96,
+                                                                                                        97,
+                                                                                                        98,
+                                                                                                        99,
+                                                                                                        100,
+                                                                                                        101,
+                                                                                                        102,
+                                                                                                        103,
+                                                                                                        104],
+                                                                           'task_id': 0,
+                                                                           'train_episode_ids': [0,
+                                                                                                 1,
+                                                                                                 2,
+                                                                                                 3,
+                                                                                                 4,
+                                                                                                 5,
+                                                                                                 6,
+                                                                                                 7,
+                                                                                                 8,
+                                                                                                 9,
+                                                                                                 10,
+                                                                                                 11,
+                                                                                                 12,
+                                                                                                 13,
+                                                                                                 14,
+                                                                                                 15,
+                                                                                                 16,
+                                                                                                 17,
+                                                                                                 18,
+                                                                                                 19,
+                                                                                                 20,
+                                                                                                 21,
+                                                                                                 22,
+                                                                                                 23,
+                                                                                                 24,
+                                                                                                 25,
+                                                                                                 26,
+                                                                                                 27,
+                                                                                                 28,
+                                                                                                 29,
+                                                                                                 30,
+                                                                                                 31,
+                                                                                                 32,
+                                                                                                 33,
+                                                                                                 34,
+                                                                                                 35,
+                                                                                                 36,
+                                                                                                 37,
+                                                                                                 38,
+                                                                                                 39,
+                                                                                                 40,
+                                                                                                 41,
+                                                                                                 42,
+                                                                                                 43,
+                                                                                                 44,
+                                                                                                 45,
+                                                                                                 46,
+                                                                                                 47,
+                                                                                                 48,
+                                                                                                 49,
+                                                                                                 50,
+                                                                                                 51,
+                                                                                                 52,
+                                                                                                 53,
+                                                                                                 54,
+                                                                                                 55,
+                                                                                                 56,
+                                                                                                 57,
+                                                                                                 58,
+                                                                                                 59,
+                                                                                                 60,
+                                                                                                 61,
+                                                                                                 62,
+                                                                                                 63,
+                                                                                                 64,
+                                                                                                 65,
+                                                                                                 66,
+                                                                                                 67,
+                                                                                                 68,
+                                                                                                 69,
+                                                                                                 70,
+                                                                                                 71,
+                                                                                                 72,
+                                                                                                 73,
+                                                                                                 74,
+                                                                                                 75,
+                                                                                                 76,
+                                                                                                 77,
+                                                                                                 78,
+                                                                                                 79,
+                                                                                                 80,
+                                                                                                 81,
+                                                                                                 82,
+                                                                                                 83,
+                                                                                                 84,
+                                                                                                 85,
+                                                                                                 86,
+                                                                                                 87,
+                                                                                                 88,
+                                                                                                 89,
+                                                                                                 90,
+                                                                                                 91,
+                                                                                                 92,
+                                                                                                 93,
+                                                                                                 94,
+                                                                                                 95,
+                                                                                                 96,
+                                                                                                 97,
+                                                                                                 98,
+                                                                                                 99,
+                                                                                                 100,
+                                                                                                 101,
+                                                                                                 102,
+                                                                                                 103,
+                                                                                                 104],
+                                                                           'val_episode_ids': [0,
+                                                                                               1,
+                                                                                               2,
+                                                                                               3,
+                                                                                               4,
+                                                                                               5,
+                                                                                               6,
+                                                                                               7,
+                                                                                               8,
+                                                                                               9]}],
+                                                                'track': 'robocasa_close_cabinet_peak',
+                                                                'val_episodes_per_task': 10},
+ 'data/autorobobench/robocasa_close_fridge_exact_ep2_splits.json': {'all_target_trajectory_data_available': True,
+                                                                    'benchmark': 'autorobobench-v0',
+                                                                    'eval_episodes_per_task': 1,
+                                                                    'exact_environment_protocol': {'demo_frames': 141,
+                                                                                                   'description': 'CloseFridge '
+                                                                                                                  'train, '
+                                                                                                                  'val, '
+                                                                                                                  'and '
+                                                                                                                  'eval '
+                                                                                                                  'all '
+                                                                                                                  'use '
+                                                                                                                  'episode '
+                                                                                                                  '2, '
+                                                                                                                  'so '
+                                                                                                                  'style, '
+                                                                                                                  'textures, '
+                                                                                                                  'layout, '
+                                                                                                                  'XML, '
+                                                                                                                  'object '
+                                                                                                                  'config, '
+                                                                                                                  'and '
+                                                                                                                  'initial '
+                                                                                                                  'reset '
+                                                                                                                  'state '
+                                                                                                                  'are '
+                                                                                                                  'identical.',
+                                                                                                   'episode_id': 2,
+                                                                                                   'fridge_fixture_key': 'fridgesidebyside_main_group_1',
+                                                                                                   'layout_id': 57,
+                                                                                                   'name': 'exact_episode_2_train_val_eval_overlap',
+                                                                                                   'strict_exact_xml': True,
+                                                                                                   'style_id': 48},
+                                                                    'intentional_train_eval_overlap': True,
+                                                                    'manifest': 'data/autorobobench/robocasa_close_fridge_peak_manifest.json',
+                                                                    'policy_train_episodes_per_task': 1,
+                                                                    'seed': 20260621,
+                                                                    'tasks': [{'alias': 'CloseFridge',
+                                                                               'eval_episode_ids': [2],
+                                                                               'paired_train_episode_ids': [2],
+                                                                               'task_id': 0,
+                                                                               'train_episode_ids': [2],
+                                                                               'val_episode_ids': [2],
+                                                                               'visual_eval_metadata': [{'episode_id': 2,
+                                                                                                         'fridge_fixture_key': 'fridgesidebyside_main_group_1',
+                                                                                                         'layout_id': 57,
+                                                                                                         'style_id': 48}]}],
+                                                                    'track': 'robocasa_close_fridge_exact_ep2',
+                                                                    'val_episodes_per_task': 1},
+ 'data/autorobobench/robocasa_close_fridge_full_dataset_splits.json': {'all_target_trajectory_data_available': True,
+                                                                       'benchmark': 'autorobobench-v0',
+                                                                       'eval_episodes_per_task': 106,
+                                                                       'full_dataset_protocol': {'description': 'CloseFridge '
+                                                                                                                'train, '
+                                                                                                                'val, '
+                                                                                                                'and '
+                                                                                                                'eval '
+                                                                                                                'all '
+                                                                                                                'use '
+                                                                                                                'every '
+                                                                                                                'local '
+                                                                                                                'demonstration '
+                                                                                                                'episode.',
+                                                                                                 'episode_count': 106,
+                                                                                                 'name': 'close_fridge_all_106_train_val_eval_overlap',
+                                                                                                 'total_demo_frames': 26888},
+                                                                       'intentional_train_eval_overlap': True,
+                                                                       'manifest': 'data/autorobobench/robocasa_close_fridge_peak_manifest.json',
+                                                                       'policy_train_episodes_per_task': 106,
+                                                                       'seed': 20260621,
+                                                                       'tasks': [{'alias': 'CloseFridge',
+                                                                                  'eval_episode_ids': [0,
+                                                                                                       1,
+                                                                                                       2,
+                                                                                                       3,
+                                                                                                       4,
+                                                                                                       5,
+                                                                                                       6,
+                                                                                                       7,
+                                                                                                       8,
+                                                                                                       9,
+                                                                                                       10,
+                                                                                                       11,
+                                                                                                       12,
+                                                                                                       13,
+                                                                                                       14,
+                                                                                                       15,
+                                                                                                       16,
+                                                                                                       17,
+                                                                                                       18,
+                                                                                                       19,
+                                                                                                       20,
+                                                                                                       21,
+                                                                                                       22,
+                                                                                                       23,
+                                                                                                       24,
+                                                                                                       25,
+                                                                                                       26,
+                                                                                                       27,
+                                                                                                       28,
+                                                                                                       29,
+                                                                                                       30,
+                                                                                                       31,
+                                                                                                       32,
+                                                                                                       33,
+                                                                                                       34,
+                                                                                                       35,
+                                                                                                       36,
+                                                                                                       37,
+                                                                                                       38,
+                                                                                                       39,
+                                                                                                       40,
+                                                                                                       41,
+                                                                                                       42,
+                                                                                                       43,
+                                                                                                       44,
+                                                                                                       45,
+                                                                                                       46,
+                                                                                                       47,
+                                                                                                       48,
+                                                                                                       49,
+                                                                                                       50,
+                                                                                                       51,
+                                                                                                       52,
+                                                                                                       53,
+                                                                                                       54,
+                                                                                                       55,
+                                                                                                       56,
+                                                                                                       57,
+                                                                                                       58,
+                                                                                                       59,
+                                                                                                       60,
+                                                                                                       61,
+                                                                                                       62,
+                                                                                                       63,
+                                                                                                       64,
+                                                                                                       65,
+                                                                                                       66,
+                                                                                                       67,
+                                                                                                       68,
+                                                                                                       69,
+                                                                                                       70,
+                                                                                                       71,
+                                                                                                       72,
+                                                                                                       73,
+                                                                                                       74,
+                                                                                                       75,
+                                                                                                       76,
+                                                                                                       77,
+                                                                                                       78,
+                                                                                                       79,
+                                                                                                       80,
+                                                                                                       81,
+                                                                                                       82,
+                                                                                                       83,
+                                                                                                       84,
+                                                                                                       85,
+                                                                                                       86,
+                                                                                                       87,
+                                                                                                       88,
+                                                                                                       89,
+                                                                                                       90,
+                                                                                                       91,
+                                                                                                       92,
+                                                                                                       93,
+                                                                                                       94,
+                                                                                                       95,
+                                                                                                       96,
+                                                                                                       97,
+                                                                                                       98,
+                                                                                                       99,
+                                                                                                       100,
+                                                                                                       101,
+                                                                                                       102,
+                                                                                                       103,
+                                                                                                       104,
+                                                                                                       105],
+                                                                                  'paired_train_episode_ids': [0,
+                                                                                                               1,
+                                                                                                               2,
+                                                                                                               3,
+                                                                                                               4,
+                                                                                                               5,
+                                                                                                               6,
+                                                                                                               7,
+                                                                                                               8,
+                                                                                                               9,
+                                                                                                               10,
+                                                                                                               11,
+                                                                                                               12,
+                                                                                                               13,
+                                                                                                               14,
+                                                                                                               15,
+                                                                                                               16,
+                                                                                                               17,
+                                                                                                               18,
+                                                                                                               19,
+                                                                                                               20,
+                                                                                                               21,
+                                                                                                               22,
+                                                                                                               23,
+                                                                                                               24,
+                                                                                                               25,
+                                                                                                               26,
+                                                                                                               27,
+                                                                                                               28,
+                                                                                                               29,
+                                                                                                               30,
+                                                                                                               31,
+                                                                                                               32,
+                                                                                                               33,
+                                                                                                               34,
+                                                                                                               35,
+                                                                                                               36,
+                                                                                                               37,
+                                                                                                               38,
+                                                                                                               39,
+                                                                                                               40,
+                                                                                                               41,
+                                                                                                               42,
+                                                                                                               43,
+                                                                                                               44,
+                                                                                                               45,
+                                                                                                               46,
+                                                                                                               47,
+                                                                                                               48,
+                                                                                                               49,
+                                                                                                               50,
+                                                                                                               51,
+                                                                                                               52,
+                                                                                                               53,
+                                                                                                               54,
+                                                                                                               55,
+                                                                                                               56,
+                                                                                                               57,
+                                                                                                               58,
+                                                                                                               59,
+                                                                                                               60,
+                                                                                                               61,
+                                                                                                               62,
+                                                                                                               63,
+                                                                                                               64,
+                                                                                                               65,
+                                                                                                               66,
+                                                                                                               67,
+                                                                                                               68,
+                                                                                                               69,
+                                                                                                               70,
+                                                                                                               71,
+                                                                                                               72,
+                                                                                                               73,
+                                                                                                               74,
+                                                                                                               75,
+                                                                                                               76,
+                                                                                                               77,
+                                                                                                               78,
+                                                                                                               79,
+                                                                                                               80,
+                                                                                                               81,
+                                                                                                               82,
+                                                                                                               83,
+                                                                                                               84,
+                                                                                                               85,
+                                                                                                               86,
+                                                                                                               87,
+                                                                                                               88,
+                                                                                                               89,
+                                                                                                               90,
+                                                                                                               91,
+                                                                                                               92,
+                                                                                                               93,
+                                                                                                               94,
+                                                                                                               95,
+                                                                                                               96,
+                                                                                                               97,
+                                                                                                               98,
+                                                                                                               99,
+                                                                                                               100,
+                                                                                                               101,
+                                                                                                               102,
+                                                                                                               103,
+                                                                                                               104,
+                                                                                                               105],
+                                                                                  'task_id': 0,
+                                                                                  'train_episode_ids': [0,
+                                                                                                        1,
+                                                                                                        2,
+                                                                                                        3,
+                                                                                                        4,
+                                                                                                        5,
+                                                                                                        6,
+                                                                                                        7,
+                                                                                                        8,
+                                                                                                        9,
+                                                                                                        10,
+                                                                                                        11,
+                                                                                                        12,
+                                                                                                        13,
+                                                                                                        14,
+                                                                                                        15,
+                                                                                                        16,
+                                                                                                        17,
+                                                                                                        18,
+                                                                                                        19,
+                                                                                                        20,
+                                                                                                        21,
+                                                                                                        22,
+                                                                                                        23,
+                                                                                                        24,
+                                                                                                        25,
+                                                                                                        26,
+                                                                                                        27,
+                                                                                                        28,
+                                                                                                        29,
+                                                                                                        30,
+                                                                                                        31,
+                                                                                                        32,
+                                                                                                        33,
+                                                                                                        34,
+                                                                                                        35,
+                                                                                                        36,
+                                                                                                        37,
+                                                                                                        38,
+                                                                                                        39,
+                                                                                                        40,
+                                                                                                        41,
+                                                                                                        42,
+                                                                                                        43,
+                                                                                                        44,
+                                                                                                        45,
+                                                                                                        46,
+                                                                                                        47,
+                                                                                                        48,
+                                                                                                        49,
+                                                                                                        50,
+                                                                                                        51,
+                                                                                                        52,
+                                                                                                        53,
+                                                                                                        54,
+                                                                                                        55,
+                                                                                                        56,
+                                                                                                        57,
+                                                                                                        58,
+                                                                                                        59,
+                                                                                                        60,
+                                                                                                        61,
+                                                                                                        62,
+                                                                                                        63,
+                                                                                                        64,
+                                                                                                        65,
+                                                                                                        66,
+                                                                                                        67,
+                                                                                                        68,
+                                                                                                        69,
+                                                                                                        70,
+                                                                                                        71,
+                                                                                                        72,
+                                                                                                        73,
+                                                                                                        74,
+                                                                                                        75,
+                                                                                                        76,
+                                                                                                        77,
+                                                                                                        78,
+                                                                                                        79,
+                                                                                                        80,
+                                                                                                        81,
+                                                                                                        82,
+                                                                                                        83,
+                                                                                                        84,
+                                                                                                        85,
+                                                                                                        86,
+                                                                                                        87,
+                                                                                                        88,
+                                                                                                        89,
+                                                                                                        90,
+                                                                                                        91,
+                                                                                                        92,
+                                                                                                        93,
+                                                                                                        94,
+                                                                                                        95,
+                                                                                                        96,
+                                                                                                        97,
+                                                                                                        98,
+                                                                                                        99,
+                                                                                                        100,
+                                                                                                        101,
+                                                                                                        102,
+                                                                                                        103,
+                                                                                                        104,
+                                                                                                        105],
+                                                                                  'val_episode_ids': [0,
+                                                                                                      1,
+                                                                                                      2,
+                                                                                                      3,
+                                                                                                      4,
+                                                                                                      5,
+                                                                                                      6,
+                                                                                                      7,
+                                                                                                      8,
+                                                                                                      9,
+                                                                                                      10,
+                                                                                                      11,
+                                                                                                      12,
+                                                                                                      13,
+                                                                                                      14,
+                                                                                                      15,
+                                                                                                      16,
+                                                                                                      17,
+                                                                                                      18,
+                                                                                                      19,
+                                                                                                      20,
+                                                                                                      21,
+                                                                                                      22,
+                                                                                                      23,
+                                                                                                      24,
+                                                                                                      25,
+                                                                                                      26,
+                                                                                                      27,
+                                                                                                      28,
+                                                                                                      29,
+                                                                                                      30,
+                                                                                                      31,
+                                                                                                      32,
+                                                                                                      33,
+                                                                                                      34,
+                                                                                                      35,
+                                                                                                      36,
+                                                                                                      37,
+                                                                                                      38,
+                                                                                                      39,
+                                                                                                      40,
+                                                                                                      41,
+                                                                                                      42,
+                                                                                                      43,
+                                                                                                      44,
+                                                                                                      45,
+                                                                                                      46,
+                                                                                                      47,
+                                                                                                      48,
+                                                                                                      49,
+                                                                                                      50,
+                                                                                                      51,
+                                                                                                      52,
+                                                                                                      53,
+                                                                                                      54,
+                                                                                                      55,
+                                                                                                      56,
+                                                                                                      57,
+                                                                                                      58,
+                                                                                                      59,
+                                                                                                      60,
+                                                                                                      61,
+                                                                                                      62,
+                                                                                                      63,
+                                                                                                      64,
+                                                                                                      65,
+                                                                                                      66,
+                                                                                                      67,
+                                                                                                      68,
+                                                                                                      69,
+                                                                                                      70,
+                                                                                                      71,
+                                                                                                      72,
+                                                                                                      73,
+                                                                                                      74,
+                                                                                                      75,
+                                                                                                      76,
+                                                                                                      77,
+                                                                                                      78,
+                                                                                                      79,
+                                                                                                      80,
+                                                                                                      81,
+                                                                                                      82,
+                                                                                                      83,
+                                                                                                      84,
+                                                                                                      85,
+                                                                                                      86,
+                                                                                                      87,
+                                                                                                      88,
+                                                                                                      89,
+                                                                                                      90,
+                                                                                                      91,
+                                                                                                      92,
+                                                                                                      93,
+                                                                                                      94,
+                                                                                                      95,
+                                                                                                      96,
+                                                                                                      97,
+                                                                                                      98,
+                                                                                                      99,
+                                                                                                      100,
+                                                                                                      101,
+                                                                                                      102,
+                                                                                                      103,
+                                                                                                      104,
+                                                                                                      105],
+                                                                                  'visual_eval_metadata': [{'episode_id': 0,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_front_group_1'],
+                                                                                                            'layout_id': 36,
+                                                                                                            'length': 294,
+                                                                                                            'style_id': 46},
+                                                                                                           {'episode_id': 1,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_main_group_1'],
+                                                                                                            'layout_id': 42,
+                                                                                                            'length': 270,
+                                                                                                            'style_id': 49},
+                                                                                                           {'episode_id': 2,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 57,
+                                                                                                            'length': 141,
+                                                                                                            'style_id': 48},
+                                                                                                           {'episode_id': 3,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 59,
+                                                                                                            'length': 348,
+                                                                                                            'style_id': 26},
+                                                                                                           {'episode_id': 4,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 43,
+                                                                                                            'length': 155,
+                                                                                                            'style_id': 43},
+                                                                                                           {'episode_id': 5,
+                                                                                                            'fridge_fixture_keys': ['fridge_main_group'],
+                                                                                                            'layout_id': 26,
+                                                                                                            'length': 252,
+                                                                                                            'style_id': 34},
+                                                                                                           {'episode_id': 6,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 21,
+                                                                                                            'length': 160,
+                                                                                                            'style_id': 59},
+                                                                                                           {'episode_id': 7,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_left_group_1'],
+                                                                                                            'layout_id': 17,
+                                                                                                            'length': 248,
+                                                                                                            'style_id': 59},
+                                                                                                           {'episode_id': 8,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_right_group_1'],
+                                                                                                            'layout_id': 56,
+                                                                                                            'length': 307,
+                                                                                                            'style_id': 20},
+                                                                                                           {'episode_id': 9,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 34,
+                                                                                                            'length': 286,
+                                                                                                            'style_id': 36},
+                                                                                                           {'episode_id': 10,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_main_group_1'],
+                                                                                                            'layout_id': 39,
+                                                                                                            'length': 288,
+                                                                                                            'style_id': 50},
+                                                                                                           {'episode_id': 11,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_main_group_1'],
+                                                                                                            'layout_id': 46,
+                                                                                                            'length': 261,
+                                                                                                            'style_id': 51},
+                                                                                                           {'episode_id': 12,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_right_group_1'],
+                                                                                                            'layout_id': 40,
+                                                                                                            'length': 352,
+                                                                                                            'style_id': 55},
+                                                                                                           {'episode_id': 13,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 32,
+                                                                                                            'length': 116,
+                                                                                                            'style_id': 13},
+                                                                                                           {'episode_id': 14,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 30,
+                                                                                                            'length': 334,
+                                                                                                            'style_id': 44},
+                                                                                                           {'episode_id': 15,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 24,
+                                                                                                            'length': 134,
+                                                                                                            'style_id': 57},
+                                                                                                           {'episode_id': 16,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_main_group_3'],
+                                                                                                            'layout_id': 19,
+                                                                                                            'length': 248,
+                                                                                                            'style_id': 55},
+                                                                                                           {'episode_id': 17,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 50,
+                                                                                                            'length': 522,
+                                                                                                            'style_id': 13},
+                                                                                                           {'episode_id': 18,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_right_group_1'],
+                                                                                                            'layout_id': 40,
+                                                                                                            'length': 374,
+                                                                                                            'style_id': 14},
+                                                                                                           {'episode_id': 19,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group_1'],
+                                                                                                            'layout_id': 14,
+                                                                                                            'length': 165,
+                                                                                                            'style_id': 42},
+                                                                                                           {'episode_id': 20,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 57,
+                                                                                                            'length': 200,
+                                                                                                            'style_id': 28},
+                                                                                                           {'episode_id': 21,
+                                                                                                            'fridge_fixture_keys': ['fridgebottomfreezer_main_group_1'],
+                                                                                                            'layout_id': 31,
+                                                                                                            'length': 201,
+                                                                                                            'style_id': 53},
+                                                                                                           {'episode_id': 22,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 25,
+                                                                                                            'length': 430,
+                                                                                                            'style_id': 60},
+                                                                                                           {'episode_id': 23,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 32,
+                                                                                                            'length': 148,
+                                                                                                            'style_id': 40},
+                                                                                                           {'episode_id': 24,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_2'],
+                                                                                                            'layout_id': 49,
+                                                                                                            'length': 311,
+                                                                                                            'style_id': 51},
+                                                                                                           {'episode_id': 25,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_left_group_1'],
+                                                                                                            'layout_id': 17,
+                                                                                                            'length': 252,
+                                                                                                            'style_id': 46},
+                                                                                                           {'episode_id': 26,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_main_group_1'],
+                                                                                                            'layout_id': 35,
+                                                                                                            'length': 337,
+                                                                                                            'style_id': 48},
+                                                                                                           {'episode_id': 27,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 21,
+                                                                                                            'length': 149,
+                                                                                                            'style_id': 56},
+                                                                                                           {'episode_id': 28,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_left_group_1'],
+                                                                                                            'layout_id': 38,
+                                                                                                            'length': 138,
+                                                                                                            'style_id': 33},
+                                                                                                           {'episode_id': 29,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 25,
+                                                                                                            'length': 271,
+                                                                                                            'style_id': 23},
+                                                                                                           {'episode_id': 30,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_left_group'],
+                                                                                                            'layout_id': 12,
+                                                                                                            'length': 324,
+                                                                                                            'style_id': 32},
+                                                                                                           {'episode_id': 31,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_main_group_1'],
+                                                                                                            'layout_id': 35,
+                                                                                                            'length': 355,
+                                                                                                            'style_id': 44},
+                                                                                                           {'episode_id': 32,
+                                                                                                            'fridge_fixture_keys': ['fridge_main_group'],
+                                                                                                            'layout_id': 26,
+                                                                                                            'length': 393,
+                                                                                                            'style_id': 54},
+                                                                                                           {'episode_id': 33,
+                                                                                                            'fridge_fixture_keys': ['fridge_main_group'],
+                                                                                                            'layout_id': 18,
+                                                                                                            'length': 163,
+                                                                                                            'style_id': 34},
+                                                                                                           {'episode_id': 34,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_2'],
+                                                                                                            'layout_id': 49,
+                                                                                                            'length': 365,
+                                                                                                            'style_id': 38},
+                                                                                                           {'episode_id': 35,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 43,
+                                                                                                            'length': 223,
+                                                                                                            'style_id': 29},
+                                                                                                           {'episode_id': 36,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 50,
+                                                                                                            'length': 362,
+                                                                                                            'style_id': 28},
+                                                                                                           {'episode_id': 37,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_right_group_1'],
+                                                                                                            'layout_id': 56,
+                                                                                                            'length': 317,
+                                                                                                            'style_id': 11},
+                                                                                                           {'episode_id': 38,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 24,
+                                                                                                            'length': 185,
+                                                                                                            'style_id': 24},
+                                                                                                           {'episode_id': 39,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 50,
+                                                                                                            'length': 328,
+                                                                                                            'style_id': 45},
+                                                                                                           {'episode_id': 40,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 47,
+                                                                                                            'length': 144,
+                                                                                                            'style_id': 35},
+                                                                                                           {'episode_id': 41,
+                                                                                                            'fridge_fixture_keys': ['fridgebottomfreezer_right_group_1'],
+                                                                                                            'layout_id': 60,
+                                                                                                            'length': 262,
+                                                                                                            'style_id': 60},
+                                                                                                           {'episode_id': 42,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 45,
+                                                                                                            'length': 126,
+                                                                                                            'style_id': 31},
+                                                                                                           {'episode_id': 43,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 47,
+                                                                                                            'length': 251,
+                                                                                                            'style_id': 44},
+                                                                                                           {'episode_id': 44,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 41,
+                                                                                                            'length': 135,
+                                                                                                            'style_id': 59},
+                                                                                                           {'episode_id': 45,
+                                                                                                            'fridge_fixture_keys': ['fridge_main_group'],
+                                                                                                            'layout_id': 18,
+                                                                                                            'length': 156,
+                                                                                                            'style_id': 20},
+                                                                                                           {'episode_id': 46,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 34,
+                                                                                                            'length': 270,
+                                                                                                            'style_id': 47},
+                                                                                                           {'episode_id': 47,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_left_group_1'],
+                                                                                                            'layout_id': 17,
+                                                                                                            'length': 259,
+                                                                                                            'style_id': 17},
+                                                                                                           {'episode_id': 48,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_main_group_1'],
+                                                                                                            'layout_id': 42,
+                                                                                                            'length': 362,
+                                                                                                            'style_id': 40},
+                                                                                                           {'episode_id': 49,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 45,
+                                                                                                            'length': 182,
+                                                                                                            'style_id': 28},
+                                                                                                           {'episode_id': 50,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 45,
+                                                                                                            'length': 136,
+                                                                                                            'style_id': 30},
+                                                                                                           {'episode_id': 51,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 41,
+                                                                                                            'length': 154,
+                                                                                                            'style_id': 21},
+                                                                                                           {'episode_id': 52,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_main_group_1'],
+                                                                                                            'layout_id': 16,
+                                                                                                            'length': 283,
+                                                                                                            'style_id': 35},
+                                                                                                           {'episode_id': 53,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 44,
+                                                                                                            'length': 218,
+                                                                                                            'style_id': 17},
+                                                                                                           {'episode_id': 54,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 25,
+                                                                                                            'length': 261,
+                                                                                                            'style_id': 50},
+                                                                                                           {'episode_id': 55,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 21,
+                                                                                                            'length': 116,
+                                                                                                            'style_id': 60},
+                                                                                                           {'episode_id': 56,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 57,
+                                                                                                            'length': 131,
+                                                                                                            'style_id': 22},
+                                                                                                           {'episode_id': 57,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_2'],
+                                                                                                            'layout_id': 49,
+                                                                                                            'length': 296,
+                                                                                                            'style_id': 29},
+                                                                                                           {'episode_id': 58,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_main_group_1'],
+                                                                                                            'layout_id': 16,
+                                                                                                            'length': 327,
+                                                                                                            'style_id': 12},
+                                                                                                           {'episode_id': 59,
+                                                                                                            'fridge_fixture_keys': ['fridgebottomfreezer_right_group_1'],
+                                                                                                            'layout_id': 60,
+                                                                                                            'length': 295,
+                                                                                                            'style_id': 52},
+                                                                                                           {'episode_id': 60,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 43,
+                                                                                                            'length': 204,
+                                                                                                            'style_id': 45},
+                                                                                                           {'episode_id': 61,
+                                                                                                            'fridge_fixture_keys': ['fridge_main_group'],
+                                                                                                            'layout_id': 22,
+                                                                                                            'length': 309,
+                                                                                                            'style_id': 32},
+                                                                                                           {'episode_id': 62,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 28,
+                                                                                                            'length': 213,
+                                                                                                            'style_id': 44},
+                                                                                                           {'episode_id': 63,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_right_group_1'],
+                                                                                                            'layout_id': 13,
+                                                                                                            'length': 231,
+                                                                                                            'style_id': 11},
+                                                                                                           {'episode_id': 64,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 32,
+                                                                                                            'length': 107,
+                                                                                                            'style_id': 43},
+                                                                                                           {'episode_id': 65,
+                                                                                                            'fridge_fixture_keys': ['fridge_main_group'],
+                                                                                                            'layout_id': 29,
+                                                                                                            'length': 120,
+                                                                                                            'style_id': 42},
+                                                                                                           {'episode_id': 66,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 23,
+                                                                                                            'length': 259,
+                                                                                                            'style_id': 31},
+                                                                                                           {'episode_id': 67,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 30,
+                                                                                                            'length': 303,
+                                                                                                            'style_id': 17},
+                                                                                                           {'episode_id': 68,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 24,
+                                                                                                            'length': 141,
+                                                                                                            'style_id': 42},
+                                                                                                           {'episode_id': 69,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 28,
+                                                                                                            'length': 226,
+                                                                                                            'style_id': 28},
+                                                                                                           {'episode_id': 70,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_left_group'],
+                                                                                                            'layout_id': 12,
+                                                                                                            'length': 302,
+                                                                                                            'style_id': 43},
+                                                                                                           {'episode_id': 71,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 47,
+                                                                                                            'length': 107,
+                                                                                                            'style_id': 42},
+                                                                                                           {'episode_id': 72,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 50,
+                                                                                                            'length': 293,
+                                                                                                            'style_id': 16},
+                                                                                                           {'episode_id': 73,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_main_group_1'],
+                                                                                                            'layout_id': 15,
+                                                                                                            'length': 313,
+                                                                                                            'style_id': 55},
+                                                                                                           {'episode_id': 74,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 44,
+                                                                                                            'length': 100,
+                                                                                                            'style_id': 59},
+                                                                                                           {'episode_id': 75,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 47,
+                                                                                                            'length': 148,
+                                                                                                            'style_id': 46},
+                                                                                                           {'episode_id': 76,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group_1'],
+                                                                                                            'layout_id': 14,
+                                                                                                            'length': 242,
+                                                                                                            'style_id': 41},
+                                                                                                           {'episode_id': 77,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 25,
+                                                                                                            'length': 374,
+                                                                                                            'style_id': 52},
+                                                                                                           {'episode_id': 78,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_right_group_1'],
+                                                                                                            'layout_id': 40,
+                                                                                                            'length': 341,
+                                                                                                            'style_id': 34},
+                                                                                                           {'episode_id': 79,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 50,
+                                                                                                            'length': 341,
+                                                                                                            'style_id': 14},
+                                                                                                           {'episode_id': 80,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 32,
+                                                                                                            'length': 171,
+                                                                                                            'style_id': 48},
+                                                                                                           {'episode_id': 81,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 50,
+                                                                                                            'length': 254,
+                                                                                                            'style_id': 45},
+                                                                                                           {'episode_id': 82,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 30,
+                                                                                                            'length': 313,
+                                                                                                            'style_id': 14},
+                                                                                                           {'episode_id': 83,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_front_group_1'],
+                                                                                                            'layout_id': 36,
+                                                                                                            'length': 282,
+                                                                                                            'style_id': 27},
+                                                                                                           {'episode_id': 84,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_2'],
+                                                                                                            'layout_id': 49,
+                                                                                                            'length': 414,
+                                                                                                            'style_id': 50},
+                                                                                                           {'episode_id': 85,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 27,
+                                                                                                            'length': 235,
+                                                                                                            'style_id': 30},
+                                                                                                           {'episode_id': 86,
+                                                                                                            'fridge_fixture_keys': ['fridge_main_group'],
+                                                                                                            'layout_id': 29,
+                                                                                                            'length': 125,
+                                                                                                            'style_id': 32},
+                                                                                                           {'episode_id': 87,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 41,
+                                                                                                            'length': 140,
+                                                                                                            'style_id': 31},
+                                                                                                           {'episode_id': 88,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 59,
+                                                                                                            'length': 320,
+                                                                                                            'style_id': 24},
+                                                                                                           {'episode_id': 89,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_main_group_1'],
+                                                                                                            'layout_id': 47,
+                                                                                                            'length': 190,
+                                                                                                            'style_id': 35},
+                                                                                                           {'episode_id': 90,
+                                                                                                            'fridge_fixture_keys': ['fridgebottomfreezer_right_group_1'],
+                                                                                                            'layout_id': 60,
+                                                                                                            'length': 289,
+                                                                                                            'style_id': 23},
+                                                                                                           {'episode_id': 91,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 59,
+                                                                                                            'length': 329,
+                                                                                                            'style_id': 21},
+                                                                                                           {'episode_id': 92,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_right_group_1'],
+                                                                                                            'layout_id': 40,
+                                                                                                            'length': 370,
+                                                                                                            'style_id': 31},
+                                                                                                           {'episode_id': 93,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_main_group_1'],
+                                                                                                            'layout_id': 15,
+                                                                                                            'length': 320,
+                                                                                                            'style_id': 49},
+                                                                                                           {'episode_id': 94,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_main_group_1'],
+                                                                                                            'layout_id': 42,
+                                                                                                            'length': 301,
+                                                                                                            'style_id': 29},
+                                                                                                           {'episode_id': 95,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 30,
+                                                                                                            'length': 353,
+                                                                                                            'style_id': 30},
+                                                                                                           {'episode_id': 96,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_right_group_1'],
+                                                                                                            'layout_id': 56,
+                                                                                                            'length': 340,
+                                                                                                            'style_id': 22},
+                                                                                                           {'episode_id': 97,
+                                                                                                            'fridge_fixture_keys': ['fridgesidebyside_right_group_1'],
+                                                                                                            'layout_id': 32,
+                                                                                                            'length': 203,
+                                                                                                            'style_id': 50},
+                                                                                                           {'episode_id': 98,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 58,
+                                                                                                            'length': 348,
+                                                                                                            'style_id': 24},
+                                                                                                           {'episode_id': 99,
+                                                                                                            'fridge_fixture_keys': ['fridge_1_main_group_1'],
+                                                                                                            'layout_id': 15,
+                                                                                                            'length': 290,
+                                                                                                            'style_id': 57},
+                                                                                                           {'episode_id': 100,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_front_group_1'],
+                                                                                                            'layout_id': 36,
+                                                                                                            'length': 407,
+                                                                                                            'style_id': 17},
+                                                                                                           {'episode_id': 101,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 27,
+                                                                                                            'length': 231,
+                                                                                                            'style_id': 37},
+                                                                                                           {'episode_id': 102,
+                                                                                                            'fridge_fixture_keys': ['fridge_right_group'],
+                                                                                                            'layout_id': 24,
+                                                                                                            'length': 144,
+                                                                                                            'style_id': 30},
+                                                                                                           {'episode_id': 103,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 27,
+                                                                                                            'length': 226,
+                                                                                                            'style_id': 55},
+                                                                                                           {'episode_id': 104,
+                                                                                                            'fridge_fixture_keys': ['fridgefrenchdoor_left_group_1'],
+                                                                                                            'layout_id': 50,
+                                                                                                            'length': 353,
+                                                                                                            'style_id': 50},
+                                                                                                           {'episode_id': 105,
+                                                                                                            'fridge_fixture_keys': ['fridge_left_group'],
+                                                                                                            'layout_id': 27,
+                                                                                                            'length': 195,
+                                                                                                            'style_id': 51}]}],
+                                                                       'track': 'robocasa_close_fridge_full_dataset',
+                                                                       'val_episodes_per_task': 106},
+ 'data/autorobobench/robocasa_close_fridge_peak_manifest.json': {'action_dim': 12,
+                                                                 'benchmark': 'autorobobench-v0',
+                                                                 'notes': ['Single-task quick peak experiment for '
+                                                                           'CloseFridge.',
+                                                                           'All available target-task RGB videos and '
+                                                                           'action trajectories are available for '
+                                                                           'training.'],
+                                                                 'policy_demos_per_task': 106,
+                                                                 'source': 'human',
+                                                                 'split': 'pretrain',
+                                                                 'suite': 'robocasa',
+                                                                 'task_count': 1,
+                                                                 'tasks': [{'alias': 'CloseFridge',
+                                                                            'available_demos': 106,
+                                                                            'available_views': ['robot0_agentview_left',
+                                                                                                'robot0_agentview_right'],
+                                                                            'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseFridge/20250819/lerobot',
+                                                                            'description': 'Close the fridge door.',
+                                                                            'filter_key': '100_demos',
+                                                                            'horizon': 750,
+                                                                            'registered_demos': 106,
+                                                                            'robocasa_task': 'CloseFridge',
+                                                                            'selected_demos': 106,
+                                                                            'source': 'human',
+                                                                            'split': 'pretrain',
+                                                                            'task_id': 0}],
+                                                                 'track': 'robocasa_close_fridge_peak',
+                                                                 'views': ['robot0_agentview_left',
+                                                                           'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_faucet_exact_ep34_splits.json': {'all_target_trajectory_data_available': True,
+                                                               'benchmark': 'autorobobench-v0',
+                                                               'eval_episodes_per_task': 1,
+                                                               'exact_environment_protocol': {'demo_frames': 203,
+                                                                                              'description': 'TurnOnSinkFaucet '
+                                                                                                             'train, '
+                                                                                                             'val, and '
+                                                                                                             'eval all '
+                                                                                                             'use '
+                                                                                                             'episode '
+                                                                                                             '34, so '
+                                                                                                             'style, '
+                                                                                                             'textures, '
+                                                                                                             'layout, '
+                                                                                                             'XML, '
+                                                                                                             'object '
+                                                                                                             'config, '
+                                                                                                             'and '
+                                                                                                             'initial '
+                                                                                                             'reset '
+                                                                                                             'state '
+                                                                                                             'are '
+                                                                                                             'identical.',
+                                                                                              'episode_id': 34,
+                                                                                              'layout_id': 38,
+                                                                                              'name': 'exact_episode_34_train_val_eval_overlap',
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'strict_exact_xml': True,
+                                                                                              'style_id': 25},
+                                                               'intentional_train_eval_overlap': True,
+                                                               'manifest': 'data/autorobobench/robocasa_faucet_peak_manifest.json',
+                                                               'policy_train_episodes_per_task': 1,
+                                                               'seed': 20260621,
+                                                               'tasks': [{'alias': 'TurnOnSinkFaucet',
+                                                                          'eval_episode_ids': [34],
+                                                                          'paired_train_episode_ids': [34],
+                                                                          'task_id': 0,
+                                                                          'train_episode_ids': [34],
+                                                                          'val_episode_ids': [34],
+                                                                          'visual_eval_metadata': [{'episode_id': 34,
+                                                                                                    'layout_id': 38,
+                                                                                                    'sink_fixture_key': 'sink_main_group_1',
+                                                                                                    'style_id': 25}]}],
+                                                               'track': 'robocasa_faucet_exact_ep34',
+                                                               'val_episodes_per_task': 1},
+ 'data/autorobobench/robocasa_faucet_layout38_same_setting_splits.json': {'all_target_trajectory_data_available': True,
+                                                                          'benchmark': 'autorobobench-v0',
+                                                                          'eval_episodes_per_task': 5,
+                                                                          'intentional_train_eval_overlap': True,
+                                                                          'manifest': 'data/autorobobench/robocasa_faucet_peak_manifest.json',
+                                                                          'policy_train_episodes_per_task': 5,
+                                                                          'same_setting_protocol': {'description': 'TurnOnSinkFaucet '
+                                                                                                                   'restricted '
+                                                                                                                   'to '
+                                                                                                                   'the '
+                                                                                                                   'largest '
+                                                                                                                   'fixed '
+                                                                                                                   'kitchen '
+                                                                                                                   'layout '
+                                                                                                                   'bucket: '
+                                                                                                                   'layout_id=38 '
+                                                                                                                   'and '
+                                                                                                                   'sink '
+                                                                                                                   'fixture '
+                                                                                                                   'key '
+                                                                                                                   'sink_main_group_1. '
+                                                                                                                   'Train, '
+                                                                                                                   'val, '
+                                                                                                                   'and '
+                                                                                                                   'eval '
+                                                                                                                   'use '
+                                                                                                                   'the '
+                                                                                                                   'same '
+                                                                                                                   'five '
+                                                                                                                   'demonstrations '
+                                                                                                                   'to '
+                                                                                                                   'measure '
+                                                                                                                   'same-setting '
+                                                                                                                   'overfit '
+                                                                                                                   'reliability.',
+                                                                                                    'episode_ids': [34,
+                                                                                                                    45,
+                                                                                                                    48,
+                                                                                                                    62,
+                                                                                                                    80],
+                                                                                                    'layout_id': 38,
+                                                                                                    'name': 'layout38_sink_main_group_1_train_eval_overlap',
+                                                                                                    'sink_fixture_key': 'sink_main_group_1',
+                                                                                                    'strict_exact_xml_note': 'Each '
+                                                                                                                             'full '
+                                                                                                                             'episode '
+                                                                                                                             'XML/style/object '
+                                                                                                                             'configuration '
+                                                                                                                             'appears '
+                                                                                                                             'only '
+                                                                                                                             'once '
+                                                                                                                             'in '
+                                                                                                                             'this '
+                                                                                                                             'dataset, '
+                                                                                                                             'so '
+                                                                                                                             'strict '
+                                                                                                                             'exact-XML '
+                                                                                                                             'training '
+                                                                                                                             'data '
+                                                                                                                             'is '
+                                                                                                                             'one '
+                                                                                                                             'trajectory. '
+                                                                                                                             'This '
+                                                                                                                             'split '
+                                                                                                                             'uses '
+                                                                                                                             'the '
+                                                                                                                             'largest '
+                                                                                                                             'repeated '
+                                                                                                                             'layout/sink '
+                                                                                                                             'setting.',
+                                                                                                    'total_demo_frames': 1107},
+                                                                          'seed': 20260621,
+                                                                          'tasks': [{'alias': 'TurnOnSinkFaucet',
+                                                                                     'eval_episode_ids': [34,
+                                                                                                          45,
+                                                                                                          48,
+                                                                                                          62,
+                                                                                                          80],
+                                                                                     'paired_train_episode_ids': [34,
+                                                                                                                  45,
+                                                                                                                  48,
+                                                                                                                  62,
+                                                                                                                  80],
+                                                                                     'task_id': 0,
+                                                                                     'train_episode_ids': [34,
+                                                                                                           45,
+                                                                                                           48,
+                                                                                                           62,
+                                                                                                           80],
+                                                                                     'val_episode_ids': [34,
+                                                                                                         45,
+                                                                                                         48,
+                                                                                                         62,
+                                                                                                         80],
+                                                                                     'visual_eval_metadata': [{'episode_id': 34,
+                                                                                                               'layout_id': 38,
+                                                                                                               'sink_fixture_key': 'sink_main_group_1',
+                                                                                                               'style_id': 25},
+                                                                                                              {'episode_id': 45,
+                                                                                                               'layout_id': 38,
+                                                                                                               'sink_fixture_key': 'sink_main_group_1',
+                                                                                                               'style_id': 30},
+                                                                                                              {'episode_id': 48,
+                                                                                                               'layout_id': 38,
+                                                                                                               'sink_fixture_key': 'sink_main_group_1',
+                                                                                                               'style_id': 44},
+                                                                                                              {'episode_id': 62,
+                                                                                                               'layout_id': 38,
+                                                                                                               'sink_fixture_key': 'sink_main_group_1',
+                                                                                                               'style_id': 33},
+                                                                                                              {'episode_id': 80,
+                                                                                                               'layout_id': 38,
+                                                                                                               'sink_fixture_key': 'sink_main_group_1',
+                                                                                                               'style_id': 50}]}],
+                                                                          'track': 'robocasa_faucet_layout38_same_setting',
+                                                                          'val_episodes_per_task': 5},
+ 'data/autorobobench/robocasa_faucet_peak_manifest.json': {'action_dim': 12,
+                                                           'benchmark': 'autorobobench-v0',
+                                                           'notes': ['Single-task peak-performance manifest for a '
+                                                                     'visually clear faucet turn-on task.',
+                                                                     'All available target-task RGB videos and action '
+                                                                     'trajectories are available for training.',
+                                                                     'The task_id is local to this single-task track '
+                                                                     'so BC-5 policy embeddings stay compact.',
+                                                                     'Use this manifest with '
+                                                                     'data/autorobobench/robocasa_faucet_peak_splits.json.'],
+                                                           'policy_demos_per_task': 107,
+                                                           'source': 'human',
+                                                           'split': 'pretrain',
+                                                           'suite': 'robocasa',
+                                                           'task_count': 1,
+                                                           'tasks': [{'alias': 'TurnOnSinkFaucet',
+                                                                      'available_demos': 107,
+                                                                      'available_views': ['robot0_agentview_left',
+                                                                                          'robot0_agentview_right'],
+                                                                      'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOnSinkFaucet/20250819/lerobot',
+                                                                      'description': 'Turn on a sink faucet.',
+                                                                      'filter_key': '100_demos',
+                                                                      'horizon': 750,
+                                                                      'registered_demos': 107,
+                                                                      'robocasa_task': 'TurnOnSinkFaucet',
+                                                                      'selected_demos': 107,
+                                                                      'source': 'human',
+                                                                      'split': 'pretrain',
+                                                                      'task_id': 0}],
+                                                           'track': 'robocasa_faucet_peak',
+                                                           'views': ['robot0_agentview_left',
+                                                                     'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_faucet_peak_splits.json': {'all_target_trajectory_data_available': True,
+                                                         'anti_replay_eval_protocol': {'description': '30% of '
+                                                                                                      'same-sink eval '
+                                                                                                      'episodes reset '
+                                                                                                      'from '
+                                                                                                      'mid-trajectory '
+                                                                                                      'states plus '
+                                                                                                      'small '
+                                                                                                      'deterministic '
+                                                                                                      'robot arm qpos '
+                                                                                                      'perturbations '
+                                                                                                      'rather than '
+                                                                                                      'exact demo '
+                                                                                                      'states.',
+                                                                                       'name': 'same_sink_recovery_perturb_eval',
+                                                                                       'perturbation_note': 'The '
+                                                                                                            'gripper, '
+                                                                                                            'faucet '
+                                                                                                            'handle, '
+                                                                                                            'fixtures, '
+                                                                                                            'style, '
+                                                                                                            'layout, '
+                                                                                                            'and model '
+                                                                                                            'XML are '
+                                                                                                            'unchanged; '
+                                                                                                            'only the '
+                                                                                                            'robot arm '
+                                                                                                            'pose is '
+                                                                                                            'slightly '
+                                                                                                            'disturbed '
+                                                                                                            'after '
+                                                                                                            'loading '
+                                                                                                            'the '
+                                                                                                            'episode '
+                                                                                                            'state.',
+                                                                                       'perturbation_scope': 'robot_arm_qpos_indices_4_to_10_only',
+                                                                                       'recovery_episode_fraction': 0.3,
+                                                                                       'recovery_episode_metadata': [{'episode_id': 2,
+                                                                                                                      'perturbation': {'description': 'Small '
+                                                                                                                                                      'deterministic '
+                                                                                                                                                      'robot '
+                                                                                                                                                      'arm '
+                                                                                                                                                      'qpos '
+                                                                                                                                                      'perturbation '
+                                                                                                                                                      'applied '
+                                                                                                                                                      'after '
+                                                                                                                                                      'loading '
+                                                                                                                                                      'the '
+                                                                                                                                                      'selected '
+                                                                                                                                                      'recovery '
+                                                                                                                                                      'state. '
+                                                                                                                                                      'Gripper, '
+                                                                                                                                                      'faucet, '
+                                                                                                                                                      'and '
+                                                                                                                                                      'fixture '
+                                                                                                                                                      'qpos '
+                                                                                                                                                      'are '
+                                                                                                                                                      'not '
+                                                                                                                                                      'perturbed.',
+                                                                                                                                       'qpos_indices': [4,
+                                                                                                                                                        5,
+                                                                                                                                                        6,
+                                                                                                                                                        7,
+                                                                                                                                                        8,
+                                                                                                                                                        9,
+                                                                                                                                                        10],
+                                                                                                                                       'qpos_noise_clip': 0.01,
+                                                                                                                                       'qpos_noise_std': 0.005,
+                                                                                                                                       'seed': 20260621,
+                                                                                                                                       'type': 'qpos_noise'},
+                                                                                                                      'reason': 'same-sink '
+                                                                                                                                'recovery '
+                                                                                                                                'start '
+                                                                                                                                'from '
+                                                                                                                                'mid-approach '
+                                                                                                                                'state',
+                                                                                                                      'reset_state_index': 79,
+                                                                                                                      'start_fraction': 0.35},
+                                                                                                                     {'episode_id': 54,
+                                                                                                                      'perturbation': {'description': 'Small '
+                                                                                                                                                      'deterministic '
+                                                                                                                                                      'robot '
+                                                                                                                                                      'arm '
+                                                                                                                                                      'qpos '
+                                                                                                                                                      'perturbation '
+                                                                                                                                                      'applied '
+                                                                                                                                                      'after '
+                                                                                                                                                      'loading '
+                                                                                                                                                      'the '
+                                                                                                                                                      'selected '
+                                                                                                                                                      'recovery '
+                                                                                                                                                      'state. '
+                                                                                                                                                      'Gripper, '
+                                                                                                                                                      'faucet, '
+                                                                                                                                                      'and '
+                                                                                                                                                      'fixture '
+                                                                                                                                                      'qpos '
+                                                                                                                                                      'are '
+                                                                                                                                                      'not '
+                                                                                                                                                      'perturbed.',
+                                                                                                                                       'qpos_indices': [4,
+                                                                                                                                                        5,
+                                                                                                                                                        6,
+                                                                                                                                                        7,
+                                                                                                                                                        8,
+                                                                                                                                                        9,
+                                                                                                                                                        10],
+                                                                                                                                       'qpos_noise_clip': 0.01,
+                                                                                                                                       'qpos_noise_std': 0.005,
+                                                                                                                                       'seed': 20260621,
+                                                                                                                                       'type': 'qpos_noise'},
+                                                                                                                      'reason': 'same-sink '
+                                                                                                                                'recovery '
+                                                                                                                                'start '
+                                                                                                                                'from '
+                                                                                                                                'mid-approach '
+                                                                                                                                'state',
+                                                                                                                      'reset_state_index': 109,
+                                                                                                                      'start_fraction': 0.35},
+                                                                                                                     {'episode_id': 90,
+                                                                                                                      'perturbation': {'description': 'Small '
+                                                                                                                                                      'deterministic '
+                                                                                                                                                      'robot '
+                                                                                                                                                      'arm '
+                                                                                                                                                      'qpos '
+                                                                                                                                                      'perturbation '
+                                                                                                                                                      'applied '
+                                                                                                                                                      'after '
+                                                                                                                                                      'loading '
+                                                                                                                                                      'the '
+                                                                                                                                                      'selected '
+                                                                                                                                                      'recovery '
+                                                                                                                                                      'state. '
+                                                                                                                                                      'Gripper, '
+                                                                                                                                                      'faucet, '
+                                                                                                                                                      'and '
+                                                                                                                                                      'fixture '
+                                                                                                                                                      'qpos '
+                                                                                                                                                      'are '
+                                                                                                                                                      'not '
+                                                                                                                                                      'perturbed.',
+                                                                                                                                       'qpos_indices': [4,
+                                                                                                                                                        5,
+                                                                                                                                                        6,
+                                                                                                                                                        7,
+                                                                                                                                                        8,
+                                                                                                                                                        9,
+                                                                                                                                                        10],
+                                                                                                                                       'qpos_noise_clip': 0.01,
+                                                                                                                                       'qpos_noise_std': 0.005,
+                                                                                                                                       'seed': 20260621,
+                                                                                                                                       'type': 'qpos_noise'},
+                                                                                                                      'reason': 'same-sink '
+                                                                                                                                'recovery '
+                                                                                                                                'start '
+                                                                                                                                'from '
+                                                                                                                                'mid-approach '
+                                                                                                                                'state',
+                                                                                                                      'reset_state_index': 57,
+                                                                                                                      'start_fraction': 0.35}],
+                                                                                       'replay_baseline_expected_failure_mode': 'A '
+                                                                                                                                'trajectory '
+                                                                                                                                'player '
+                                                                                                                                'that '
+                                                                                                                                'always '
+                                                                                                                                'starts '
+                                                                                                                                'at '
+                                                                                                                                'action '
+                                                                                                                                'index '
+                                                                                                                                '0 '
+                                                                                                                                'is '
+                                                                                                                                'out '
+                                                                                                                                'of '
+                                                                                                                                'phase '
+                                                                                                                                'on '
+                                                                                                                                'recovery '
+                                                                                                                                'episodes.',
+                                                                                       'selection_rule': 'Three of ten '
+                                                                                                         'same-sink '
+                                                                                                         'eval '
+                                                                                                         'episodes use '
+                                                                                                         'deterministic '
+                                                                                                         'reset_state_index '
+                                                                                                         'values near '
+                                                                                                         '35% of '
+                                                                                                         'episode '
+                                                                                                         'length, then '
+                                                                                                         'apply '
+                                                                                                         'bounded qpos '
+                                                                                                         'noise to '
+                                                                                                         'robot arm '
+                                                                                                         'joints.',
+                                                                                       'sink_fixture_key': 'sink_main_group_1'},
+                                                         'benchmark': 'autorobobench-v0',
+                                                         'eval_episodes_per_task': 10,
+                                                         'generic_video_only_tasks': 9,
+                                                         'generic_video_pool_contains_target_task': False,
+                                                         'intentional_train_eval_overlap': True,
+                                                         'manifest': 'data/autorobobench/robocasa_faucet_peak_manifest.json',
+                                                         'notes': ['The target task is fixed to one repetitive faucet '
+                                                                   'turn-on operation.',
+                                                                   'Training/eval are restricted to the RoboCasa '
+                                                                   'sink_main_group_1 sink fixture family to avoid '
+                                                                   'sink-type generalization.',
+                                                                   'Training gets all available same-sink target-task '
+                                                                   'action trajectories and RGB videos for the listed '
+                                                                   '23 episodes.',
+                                                                   'Validation and eval episode ids remain listed for '
+                                                                   'measurement, but their trajectories are '
+                                                                   'intentionally also available for this single-task '
+                                                                   'peak-performance setting.',
+                                                                   'The generic video pool is action-free RGB from '
+                                                                   'other RoboCasa tasks and intentionally excludes '
+                                                                   'the target task.',
+                                                                   'Anti-replay eval is enabled inside the same sink '
+                                                                   'family: 3/10 eval episodes reset to perturbed '
+                                                                   'mid-trajectory recovery states.'],
+                                                         'policy_train_episodes_per_task': 23,
+                                                         'same_sink_protocol': {'available_episode_ids': [2,
+                                                                                                          15,
+                                                                                                          18,
+                                                                                                          23,
+                                                                                                          33,
+                                                                                                          34,
+                                                                                                          35,
+                                                                                                          41,
+                                                                                                          45,
+                                                                                                          48,
+                                                                                                          51,
+                                                                                                          54,
+                                                                                                          60,
+                                                                                                          62,
+                                                                                                          63,
+                                                                                                          65,
+                                                                                                          75,
+                                                                                                          80,
+                                                                                                          81,
+                                                                                                          82,
+                                                                                                          87,
+                                                                                                          90,
+                                                                                                          95],
+                                                                                'description': 'Restrict '
+                                                                                               'TurnOnSinkFaucet '
+                                                                                               'train/val/eval to '
+                                                                                               'episodes whose '
+                                                                                               'RoboCasa sink fixture '
+                                                                                               'key is '
+                                                                                               'sink_main_group_1, so '
+                                                                                               'sink geometry/family '
+                                                                                               'is fixed while '
+                                                                                               'style/layout can still '
+                                                                                               'vary.',
+                                                                                'eval_episode_count': 10,
+                                                                                'name': 'sink_main_group_1_only',
+                                                                                'sink_fixture_key': 'sink_main_group_1',
+                                                                                'train_episode_count': 23},
+                                                         'seed': 20260620,
+                                                         'tasks': [{'alias': 'TurnOnSinkFaucet',
+                                                                    'anti_replay_eval_metadata': [{'episode_id': 2,
+                                                                                                   'perturbation': {'description': 'Small '
+                                                                                                                                   'deterministic '
+                                                                                                                                   'robot '
+                                                                                                                                   'arm '
+                                                                                                                                   'qpos '
+                                                                                                                                   'perturbation '
+                                                                                                                                   'applied '
+                                                                                                                                   'after '
+                                                                                                                                   'loading '
+                                                                                                                                   'the '
+                                                                                                                                   'selected '
+                                                                                                                                   'recovery '
+                                                                                                                                   'state. '
+                                                                                                                                   'Gripper, '
+                                                                                                                                   'faucet, '
+                                                                                                                                   'and '
+                                                                                                                                   'fixture '
+                                                                                                                                   'qpos '
+                                                                                                                                   'are '
+                                                                                                                                   'not '
+                                                                                                                                   'perturbed.',
+                                                                                                                    'qpos_indices': [4,
+                                                                                                                                     5,
+                                                                                                                                     6,
+                                                                                                                                     7,
+                                                                                                                                     8,
+                                                                                                                                     9,
+                                                                                                                                     10],
+                                                                                                                    'qpos_noise_clip': 0.01,
+                                                                                                                    'qpos_noise_std': 0.005,
+                                                                                                                    'seed': 20260621,
+                                                                                                                    'type': 'qpos_noise'},
+                                                                                                   'reason': 'same-sink '
+                                                                                                             'recovery '
+                                                                                                             'start '
+                                                                                                             'from '
+                                                                                                             'mid-approach '
+                                                                                                             'state',
+                                                                                                   'reset_state_index': 79,
+                                                                                                   'start_fraction': 0.35},
+                                                                                                  {'episode_id': 54,
+                                                                                                   'perturbation': {'description': 'Small '
+                                                                                                                                   'deterministic '
+                                                                                                                                   'robot '
+                                                                                                                                   'arm '
+                                                                                                                                   'qpos '
+                                                                                                                                   'perturbation '
+                                                                                                                                   'applied '
+                                                                                                                                   'after '
+                                                                                                                                   'loading '
+                                                                                                                                   'the '
+                                                                                                                                   'selected '
+                                                                                                                                   'recovery '
+                                                                                                                                   'state. '
+                                                                                                                                   'Gripper, '
+                                                                                                                                   'faucet, '
+                                                                                                                                   'and '
+                                                                                                                                   'fixture '
+                                                                                                                                   'qpos '
+                                                                                                                                   'are '
+                                                                                                                                   'not '
+                                                                                                                                   'perturbed.',
+                                                                                                                    'qpos_indices': [4,
+                                                                                                                                     5,
+                                                                                                                                     6,
+                                                                                                                                     7,
+                                                                                                                                     8,
+                                                                                                                                     9,
+                                                                                                                                     10],
+                                                                                                                    'qpos_noise_clip': 0.01,
+                                                                                                                    'qpos_noise_std': 0.005,
+                                                                                                                    'seed': 20260621,
+                                                                                                                    'type': 'qpos_noise'},
+                                                                                                   'reason': 'same-sink '
+                                                                                                             'recovery '
+                                                                                                             'start '
+                                                                                                             'from '
+                                                                                                             'mid-approach '
+                                                                                                             'state',
+                                                                                                   'reset_state_index': 109,
+                                                                                                   'start_fraction': 0.35},
+                                                                                                  {'episode_id': 90,
+                                                                                                   'perturbation': {'description': 'Small '
+                                                                                                                                   'deterministic '
+                                                                                                                                   'robot '
+                                                                                                                                   'arm '
+                                                                                                                                   'qpos '
+                                                                                                                                   'perturbation '
+                                                                                                                                   'applied '
+                                                                                                                                   'after '
+                                                                                                                                   'loading '
+                                                                                                                                   'the '
+                                                                                                                                   'selected '
+                                                                                                                                   'recovery '
+                                                                                                                                   'state. '
+                                                                                                                                   'Gripper, '
+                                                                                                                                   'faucet, '
+                                                                                                                                   'and '
+                                                                                                                                   'fixture '
+                                                                                                                                   'qpos '
+                                                                                                                                   'are '
+                                                                                                                                   'not '
+                                                                                                                                   'perturbed.',
+                                                                                                                    'qpos_indices': [4,
+                                                                                                                                     5,
+                                                                                                                                     6,
+                                                                                                                                     7,
+                                                                                                                                     8,
+                                                                                                                                     9,
+                                                                                                                                     10],
+                                                                                                                    'qpos_noise_clip': 0.01,
+                                                                                                                    'qpos_noise_std': 0.005,
+                                                                                                                    'seed': 20260621,
+                                                                                                                    'type': 'qpos_noise'},
+                                                                                                   'reason': 'same-sink '
+                                                                                                             'recovery '
+                                                                                                             'start '
+                                                                                                             'from '
+                                                                                                             'mid-approach '
+                                                                                                             'state',
+                                                                                                   'reset_state_index': 57,
+                                                                                                   'start_fraction': 0.35}],
+                                                                    'eval_episode_ids': [2,
+                                                                                         15,
+                                                                                         75,
+                                                                                         65,
+                                                                                         60,
+                                                                                         62,
+                                                                                         51,
+                                                                                         54,
+                                                                                         82,
+                                                                                         90],
+                                                                    'eval_reset_perturbations': {'2': {'description': 'Small '
+                                                                                                                      'deterministic '
+                                                                                                                      'robot '
+                                                                                                                      'arm '
+                                                                                                                      'qpos '
+                                                                                                                      'perturbation '
+                                                                                                                      'applied '
+                                                                                                                      'after '
+                                                                                                                      'loading '
+                                                                                                                      'the '
+                                                                                                                      'selected '
+                                                                                                                      'recovery '
+                                                                                                                      'state. '
+                                                                                                                      'Gripper, '
+                                                                                                                      'faucet, '
+                                                                                                                      'and '
+                                                                                                                      'fixture '
+                                                                                                                      'qpos '
+                                                                                                                      'are '
+                                                                                                                      'not '
+                                                                                                                      'perturbed.',
+                                                                                                       'qpos_indices': [4,
+                                                                                                                        5,
+                                                                                                                        6,
+                                                                                                                        7,
+                                                                                                                        8,
+                                                                                                                        9,
+                                                                                                                        10],
+                                                                                                       'qpos_noise_clip': 0.01,
+                                                                                                       'qpos_noise_std': 0.005,
+                                                                                                       'seed': 20260621,
+                                                                                                       'type': 'qpos_noise'},
+                                                                                                 '54': {'description': 'Small '
+                                                                                                                       'deterministic '
+                                                                                                                       'robot '
+                                                                                                                       'arm '
+                                                                                                                       'qpos '
+                                                                                                                       'perturbation '
+                                                                                                                       'applied '
+                                                                                                                       'after '
+                                                                                                                       'loading '
+                                                                                                                       'the '
+                                                                                                                       'selected '
+                                                                                                                       'recovery '
+                                                                                                                       'state. '
+                                                                                                                       'Gripper, '
+                                                                                                                       'faucet, '
+                                                                                                                       'and '
+                                                                                                                       'fixture '
+                                                                                                                       'qpos '
+                                                                                                                       'are '
+                                                                                                                       'not '
+                                                                                                                       'perturbed.',
+                                                                                                        'qpos_indices': [4,
+                                                                                                                         5,
+                                                                                                                         6,
+                                                                                                                         7,
+                                                                                                                         8,
+                                                                                                                         9,
+                                                                                                                         10],
+                                                                                                        'qpos_noise_clip': 0.01,
+                                                                                                        'qpos_noise_std': 0.005,
+                                                                                                        'seed': 20260621,
+                                                                                                        'type': 'qpos_noise'},
+                                                                                                 '90': {'description': 'Small '
+                                                                                                                       'deterministic '
+                                                                                                                       'robot '
+                                                                                                                       'arm '
+                                                                                                                       'qpos '
+                                                                                                                       'perturbation '
+                                                                                                                       'applied '
+                                                                                                                       'after '
+                                                                                                                       'loading '
+                                                                                                                       'the '
+                                                                                                                       'selected '
+                                                                                                                       'recovery '
+                                                                                                                       'state. '
+                                                                                                                       'Gripper, '
+                                                                                                                       'faucet, '
+                                                                                                                       'and '
+                                                                                                                       'fixture '
+                                                                                                                       'qpos '
+                                                                                                                       'are '
+                                                                                                                       'not '
+                                                                                                                       'perturbed.',
+                                                                                                        'qpos_indices': [4,
+                                                                                                                         5,
+                                                                                                                         6,
+                                                                                                                         7,
+                                                                                                                         8,
+                                                                                                                         9,
+                                                                                                                         10],
+                                                                                                        'qpos_noise_clip': 0.01,
+                                                                                                        'qpos_noise_std': 0.005,
+                                                                                                        'seed': 20260621,
+                                                                                                        'type': 'qpos_noise'}},
+                                                                    'eval_reset_state_indices': {'2': 79,
+                                                                                                 '54': 109,
+                                                                                                 '90': 57},
+                                                                    'paired_train_episode_ids': [2,
+                                                                                                 15,
+                                                                                                 18,
+                                                                                                 23,
+                                                                                                 33,
+                                                                                                 34,
+                                                                                                 35,
+                                                                                                 41,
+                                                                                                 45,
+                                                                                                 48,
+                                                                                                 51,
+                                                                                                 54,
+                                                                                                 60,
+                                                                                                 62,
+                                                                                                 63,
+                                                                                                 65,
+                                                                                                 75,
+                                                                                                 80,
+                                                                                                 81,
+                                                                                                 82,
+                                                                                                 87,
+                                                                                                 90,
+                                                                                                 95],
+                                                                    'same_sink_metadata': [{'episode_id': 2,
+                                                                                            'layout_id': 55,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 59},
+                                                                                           {'episode_id': 15,
+                                                                                            'layout_id': 50,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 34},
+                                                                                           {'episode_id': 18,
+                                                                                            'layout_id': 53,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 12},
+                                                                                           {'episode_id': 23,
+                                                                                            'layout_id': 41,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 31},
+                                                                                           {'episode_id': 33,
+                                                                                            'layout_id': 57,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 45},
+                                                                                           {'episode_id': 34,
+                                                                                            'layout_id': 38,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 25},
+                                                                                           {'episode_id': 35,
+                                                                                            'layout_id': 44,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 55},
+                                                                                           {'episode_id': 41,
+                                                                                            'layout_id': 50,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 43},
+                                                                                           {'episode_id': 45,
+                                                                                            'layout_id': 38,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 30},
+                                                                                           {'episode_id': 48,
+                                                                                            'layout_id': 38,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 44},
+                                                                                           {'episode_id': 51,
+                                                                                            'layout_id': 39,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 21},
+                                                                                           {'episode_id': 54,
+                                                                                            'layout_id': 44,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 16},
+                                                                                           {'episode_id': 60,
+                                                                                            'layout_id': 57,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 44},
+                                                                                           {'episode_id': 62,
+                                                                                            'layout_id': 38,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 33},
+                                                                                           {'episode_id': 63,
+                                                                                            'layout_id': 55,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 41},
+                                                                                           {'episode_id': 65,
+                                                                                            'layout_id': 41,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 54},
+                                                                                           {'episode_id': 75,
+                                                                                            'layout_id': 53,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 23},
+                                                                                           {'episode_id': 80,
+                                                                                            'layout_id': 38,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 50},
+                                                                                           {'episode_id': 81,
+                                                                                            'layout_id': 39,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 12},
+                                                                                           {'episode_id': 82,
+                                                                                            'layout_id': 51,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 20},
+                                                                                           {'episode_id': 87,
+                                                                                            'layout_id': 41,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 45},
+                                                                                           {'episode_id': 90,
+                                                                                            'layout_id': 58,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 22},
+                                                                                           {'episode_id': 95,
+                                                                                            'layout_id': 39,
+                                                                                            'sink_fixture_key': 'sink_main_group_1',
+                                                                                            'style_id': 51}],
+                                                                    'task_id': 0,
+                                                                    'train_episode_ids': [2,
+                                                                                          15,
+                                                                                          18,
+                                                                                          23,
+                                                                                          33,
+                                                                                          34,
+                                                                                          35,
+                                                                                          41,
+                                                                                          45,
+                                                                                          48,
+                                                                                          51,
+                                                                                          54,
+                                                                                          60,
+                                                                                          62,
+                                                                                          63,
+                                                                                          65,
+                                                                                          75,
+                                                                                          80,
+                                                                                          81,
+                                                                                          82,
+                                                                                          87,
+                                                                                          90,
+                                                                                          95],
+                                                                    'val_episode_ids': [23,
+                                                                                        33,
+                                                                                        34,
+                                                                                        35,
+                                                                                        41,
+                                                                                        45,
+                                                                                        48,
+                                                                                        80,
+                                                                                        81,
+                                                                                        87],
+                                                                    'visual_eval_metadata': [{'episode_id': 2,
+                                                                                              'layout_id': 55,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 59},
+                                                                                             {'episode_id': 15,
+                                                                                              'layout_id': 50,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 34},
+                                                                                             {'episode_id': 75,
+                                                                                              'layout_id': 53,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 23},
+                                                                                             {'episode_id': 65,
+                                                                                              'layout_id': 41,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 54},
+                                                                                             {'episode_id': 60,
+                                                                                              'layout_id': 57,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 44},
+                                                                                             {'episode_id': 62,
+                                                                                              'layout_id': 38,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 33},
+                                                                                             {'episode_id': 51,
+                                                                                              'layout_id': 39,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 21},
+                                                                                             {'episode_id': 54,
+                                                                                              'layout_id': 44,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 16},
+                                                                                             {'episode_id': 82,
+                                                                                              'layout_id': 51,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 20},
+                                                                                             {'episode_id': 90,
+                                                                                              'layout_id': 58,
+                                                                                              'sink_fixture_key': 'sink_main_group_1',
+                                                                                              'style_id': 22}]}],
+                                                         'track': 'robocasa_faucet_peak',
+                                                         'val_episodes_per_task': 10,
+                                                         'video_pool': 'data/autorobobench/robocasa_faucet_peak_video_pool.json',
+                                                         'visual_eval_protocol': {'description': 'Eval episodes keep '
+                                                                                                 'the sink fixture '
+                                                                                                 'family fixed to '
+                                                                                                 'sink_main_group_1 '
+                                                                                                 'while varying '
+                                                                                                 'RoboCasa '
+                                                                                                 'style_id/layout_id '
+                                                                                                 'within that family.',
+                                                                                  'eval_episode_metadata': [{'episode_id': 2,
+                                                                                                             'layout_id': 55,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 59},
+                                                                                                            {'episode_id': 15,
+                                                                                                             'layout_id': 50,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 34},
+                                                                                                            {'episode_id': 75,
+                                                                                                             'layout_id': 53,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 23},
+                                                                                                            {'episode_id': 65,
+                                                                                                             'layout_id': 41,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 54},
+                                                                                                            {'episode_id': 60,
+                                                                                                             'layout_id': 57,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 44},
+                                                                                                            {'episode_id': 62,
+                                                                                                             'layout_id': 38,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 33},
+                                                                                                            {'episode_id': 51,
+                                                                                                             'layout_id': 39,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 21},
+                                                                                                            {'episode_id': 54,
+                                                                                                             'layout_id': 44,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 16},
+                                                                                                            {'episode_id': 82,
+                                                                                                             'layout_id': 51,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 20},
+                                                                                                            {'episode_id': 90,
+                                                                                                             'layout_id': 58,
+                                                                                                             'sink_fixture_key': 'sink_main_group_1',
+                                                                                                             'style_id': 22}],
+                                                                                  'name': 'same_sink_style_layout_eval',
+                                                                                  'selection_rule': '10 eval episodes '
+                                                                                                    'from the '
+                                                                                                    'sink_main_group_1 '
+                                                                                                    'subset, selected '
+                                                                                                    'to cover distinct '
+                                                                                                    'style_id values '
+                                                                                                    'and broad layout '
+                                                                                                    'coverage.',
+                                                                                  'sink_fixture_key': 'sink_main_group_1',
+                                                                                  'unique_eval_layout_ids': [38,
+                                                                                                             39,
+                                                                                                             41,
+                                                                                                             44,
+                                                                                                             50,
+                                                                                                             51,
+                                                                                                             53,
+                                                                                                             55,
+                                                                                                             57,
+                                                                                                             58],
+                                                                                  'unique_eval_style_ids': [16,
+                                                                                                            20,
+                                                                                                            21,
+                                                                                                            22,
+                                                                                                            23,
+                                                                                                            33,
+                                                                                                            34,
+                                                                                                            44,
+                                                                                                            54,
+                                                                                                            59]}},
+ 'data/autorobobench/robocasa_faucet_peak_video_pool.json': {'benchmark': 'autorobobench-v0',
+                                                             'contains_actions': False,
+                                                             'contains_proprio': False,
+                                                             'contains_rgb_video': True,
+                                                             'kind': 'action_free_generic_robot_video',
+                                                             'notes': ['This pool is the optional generic RGB-only '
+                                                                       'input for the faucet peak task.',
+                                                                       'It omits actions, proprio, parquet paths, and '
+                                                                       'the target faucet task.',
+                                                                       'The policy may ignore this pool and train only '
+                                                                       'from the task-specific cloning split.'],
+                                                             'source': 'RoboCasa v1.0 pretrain atomic task videos',
+                                                             'target_task_alias': 'TurnOnSinkFaucet',
+                                                             'target_task_included': False,
+                                                             'tasks': [{'alias': 'OpenDrawer',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'CloseDrawer',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseDrawer/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'PickPlaceCounterToStove',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToStove/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'TurnOffStove',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOffStove/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'PickPlaceCounterToCabinet',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToCabinet/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'OpenCabinet',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenCabinet/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'CloseCabinet',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseCabinet/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'OpenFridge',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenFridge/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]},
+                                                                       {'alias': 'CloseFridge',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseFridge/20250819/lerobot',
+                                                                        'video_episode_range': [0, 79]}],
+                                                             'track': 'robocasa_faucet_peak',
+                                                             'views': ['robot0_agentview_left',
+                                                                       'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_long_horizon_manifest.json': {'action_dim': 12,
+                                                            'benchmark': 'autorobobench-v0',
+                                                            'notes': ['Single-task long-horizon manifest for '
+                                                                      'PickPlaceCounterToMicrowave.',
+                                                                      'The task_id is local to this track so '
+                                                                      'single-task policy embeddings stay compact.',
+                                                                      'Use this manifest with '
+                                                                      'data/autorobobench/robocasa_long_horizon_splits.json.'],
+                                                            'policy_demos_per_task': 80,
+                                                            'source': 'human',
+                                                            'split': 'pretrain',
+                                                            'suite': 'robocasa',
+                                                            'task_count': 1,
+                                                            'tasks': [{'alias': 'PickPlaceCounterToMicrowave',
+                                                                       'available_demos': 110,
+                                                                       'available_views': ['robot0_agentview_left',
+                                                                                           'robot0_agentview_right'],
+                                                                       'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToMicrowave/20250819/lerobot',
+                                                                       'description': 'Pick an object from the counter '
+                                                                                      'and place it into the '
+                                                                                      'microwave.',
+                                                                       'filter_key': '100_demos',
+                                                                       'horizon': 750,
+                                                                       'registered_demos': 100,
+                                                                       'robocasa_task': 'PickPlaceCounterToMicrowave',
+                                                                       'selected_demos': 80,
+                                                                       'source': 'human',
+                                                                       'split': 'pretrain',
+                                                                       'task_id': 0}],
+                                                            'track': 'robocasa_long_horizon',
+                                                            'views': ['robot0_agentview_left',
+                                                                      'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_long_horizon_splits.json': {'benchmark': 'autorobobench-v0',
+                                                          'eval_episodes_per_task': 10,
+                                                          'manifest': 'data/autorobobench/robocasa_long_horizon_manifest.json',
+                                                          'notes': ['This frozen public split contains only '
+                                                                    'PickPlaceCounterToMicrowave.',
+                                                                    'Training entrypoints may use a prefix of '
+                                                                    'train_episode_ids for quick dev runs, but eval '
+                                                                    'must use eval_episode_ids.',
+                                                                    'The public evaluator reports full closed-loop '
+                                                                    'success and a provisional subgoal_progress field; '
+                                                                    'hidden scoring may replace this with '
+                                                                    'task-specific simulator subgoal predicates.'],
+                                                          'policy_train_episodes_per_task': 80,
+                                                          'seed': 20260622,
+                                                          'tasks': [{'alias': 'PickPlaceCounterToMicrowave',
+                                                                     'eval_episode_ids': [90,
+                                                                                          91,
+                                                                                          92,
+                                                                                          93,
+                                                                                          94,
+                                                                                          95,
+                                                                                          96,
+                                                                                          97,
+                                                                                          98,
+                                                                                          99],
+                                                                     'paired_train_episode_ids': [0,
+                                                                                                  1,
+                                                                                                  2,
+                                                                                                  3,
+                                                                                                  4,
+                                                                                                  5,
+                                                                                                  6,
+                                                                                                  7,
+                                                                                                  8,
+                                                                                                  9,
+                                                                                                  10,
+                                                                                                  11,
+                                                                                                  12,
+                                                                                                  13,
+                                                                                                  14,
+                                                                                                  15,
+                                                                                                  16,
+                                                                                                  17,
+                                                                                                  18,
+                                                                                                  19,
+                                                                                                  20,
+                                                                                                  21,
+                                                                                                  22,
+                                                                                                  23,
+                                                                                                  24,
+                                                                                                  25,
+                                                                                                  26,
+                                                                                                  27,
+                                                                                                  28,
+                                                                                                  29,
+                                                                                                  30,
+                                                                                                  31,
+                                                                                                  32,
+                                                                                                  33,
+                                                                                                  34,
+                                                                                                  35,
+                                                                                                  36,
+                                                                                                  37,
+                                                                                                  38,
+                                                                                                  39,
+                                                                                                  40,
+                                                                                                  41,
+                                                                                                  42,
+                                                                                                  43,
+                                                                                                  44,
+                                                                                                  45,
+                                                                                                  46,
+                                                                                                  47,
+                                                                                                  48,
+                                                                                                  49,
+                                                                                                  50,
+                                                                                                  51,
+                                                                                                  52,
+                                                                                                  53,
+                                                                                                  54,
+                                                                                                  55,
+                                                                                                  56,
+                                                                                                  57,
+                                                                                                  58,
+                                                                                                  59,
+                                                                                                  60,
+                                                                                                  61,
+                                                                                                  62,
+                                                                                                  63,
+                                                                                                  64,
+                                                                                                  65,
+                                                                                                  66,
+                                                                                                  67,
+                                                                                                  68,
+                                                                                                  69,
+                                                                                                  70,
+                                                                                                  71,
+                                                                                                  72,
+                                                                                                  73,
+                                                                                                  74,
+                                                                                                  75,
+                                                                                                  76,
+                                                                                                  77,
+                                                                                                  78,
+                                                                                                  79],
+                                                                     'subgoals': ['reach source object',
+                                                                                  'grasp source object',
+                                                                                  'move to microwave',
+                                                                                  'release in microwave'],
+                                                                     'task_id': 0,
+                                                                     'train_episode_ids': [0,
+                                                                                           1,
+                                                                                           2,
+                                                                                           3,
+                                                                                           4,
+                                                                                           5,
+                                                                                           6,
+                                                                                           7,
+                                                                                           8,
+                                                                                           9,
+                                                                                           10,
+                                                                                           11,
+                                                                                           12,
+                                                                                           13,
+                                                                                           14,
+                                                                                           15,
+                                                                                           16,
+                                                                                           17,
+                                                                                           18,
+                                                                                           19,
+                                                                                           20,
+                                                                                           21,
+                                                                                           22,
+                                                                                           23,
+                                                                                           24,
+                                                                                           25,
+                                                                                           26,
+                                                                                           27,
+                                                                                           28,
+                                                                                           29,
+                                                                                           30,
+                                                                                           31,
+                                                                                           32,
+                                                                                           33,
+                                                                                           34,
+                                                                                           35,
+                                                                                           36,
+                                                                                           37,
+                                                                                           38,
+                                                                                           39,
+                                                                                           40,
+                                                                                           41,
+                                                                                           42,
+                                                                                           43,
+                                                                                           44,
+                                                                                           45,
+                                                                                           46,
+                                                                                           47,
+                                                                                           48,
+                                                                                           49,
+                                                                                           50,
+                                                                                           51,
+                                                                                           52,
+                                                                                           53,
+                                                                                           54,
+                                                                                           55,
+                                                                                           56,
+                                                                                           57,
+                                                                                           58,
+                                                                                           59,
+                                                                                           60,
+                                                                                           61,
+                                                                                           62,
+                                                                                           63,
+                                                                                           64,
+                                                                                           65,
+                                                                                           66,
+                                                                                           67,
+                                                                                           68,
+                                                                                           69,
+                                                                                           70,
+                                                                                           71,
+                                                                                           72,
+                                                                                           73,
+                                                                                           74,
+                                                                                           75,
+                                                                                           76,
+                                                                                           77,
+                                                                                           78,
+                                                                                           79],
+                                                                     'val_episode_ids': [80,
+                                                                                         81,
+                                                                                         82,
+                                                                                         83,
+                                                                                         84,
+                                                                                         85,
+                                                                                         86,
+                                                                                         87,
+                                                                                         88,
+                                                                                         89]}],
+                                                          'track': 'robocasa_long_horizon',
+                                                          'val_episodes_per_task': 10},
+ 'data/autorobobench/robocasa_stand_mixer_peak_manifest.json': {'action_dim': 7,
+                                                                'benchmark': 'autorobobench-v0',
+                                                                'notes': ['Single-task peak-performance manifest for a '
+                                                                          'visually clear '
+                                                                          'pick-and-place-to-stand-mixer task.',
+                                                                          'The task_id is local to this single-task '
+                                                                          'track so BC-5 policy embeddings stay '
+                                                                          'compact.',
+                                                                          'Use this manifest with '
+                                                                          'data/autorobobench/robocasa_stand_mixer_peak_splits.json.'],
+                                                                'policy_demos_per_task': 80,
+                                                                'source': 'human',
+                                                                'split': 'pretrain',
+                                                                'suite': 'robocasa',
+                                                                'task_count': 1,
+                                                                'tasks': [{'alias': 'PickPlaceCounterToStandMixer',
+                                                                           'available_demos': 107,
+                                                                           'available_views': ['robot0_agentview_left',
+                                                                                               'robot0_agentview_right'],
+                                                                           'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToStandMixer/20250820/lerobot',
+                                                                           'description': 'Pick an object from the '
+                                                                                          'counter and place it into a '
+                                                                                          'stand mixer.',
+                                                                           'filter_key': '100_demos',
+                                                                           'horizon': 750,
+                                                                           'registered_demos': 100,
+                                                                           'robocasa_task': 'PickPlaceCounterToStandMixer',
+                                                                           'selected_demos': 80,
+                                                                           'source': 'human',
+                                                                           'split': 'pretrain',
+                                                                           'task_id': 0}],
+                                                                'track': 'robocasa_stand_mixer_peak',
+                                                                'views': ['robot0_agentview_left',
+                                                                          'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_stand_mixer_peak_splits.json': {'benchmark': 'autorobobench-v0',
+                                                              'eval_episodes_per_task': 10,
+                                                              'generic_video_only_tasks': 9,
+                                                              'generic_video_pool_contains_target_task': False,
+                                                              'manifest': 'data/autorobobench/robocasa_stand_mixer_peak_manifest.json',
+                                                              'notes': ['The target task is fixed to one repetitive '
+                                                                        'but visually clear pick-and-place operation.',
+                                                                        'Training gets task-specific action-bearing '
+                                                                        'cloning data for episodes 0-79.',
+                                                                        'Validation and eval are disjoint held-out '
+                                                                        'stand-mixer episodes.',
+                                                                        'The generic video pool is action-free RGB '
+                                                                        'from other RoboCasa tasks and intentionally '
+                                                                        'excludes the target task.'],
+                                                              'policy_train_episodes_per_task': 80,
+                                                              'seed': 20260620,
+                                                              'tasks': [{'alias': 'PickPlaceCounterToStandMixer',
+                                                                         'eval_episode_ids': [90,
+                                                                                              91,
+                                                                                              92,
+                                                                                              93,
+                                                                                              94,
+                                                                                              95,
+                                                                                              96,
+                                                                                              97,
+                                                                                              98,
+                                                                                              99],
+                                                                         'paired_train_episode_ids': [0,
+                                                                                                      1,
+                                                                                                      2,
+                                                                                                      3,
+                                                                                                      4,
+                                                                                                      5,
+                                                                                                      6,
+                                                                                                      7,
+                                                                                                      8,
+                                                                                                      9,
+                                                                                                      10,
+                                                                                                      11,
+                                                                                                      12,
+                                                                                                      13,
+                                                                                                      14,
+                                                                                                      15,
+                                                                                                      16,
+                                                                                                      17,
+                                                                                                      18,
+                                                                                                      19,
+                                                                                                      20,
+                                                                                                      21,
+                                                                                                      22,
+                                                                                                      23,
+                                                                                                      24,
+                                                                                                      25,
+                                                                                                      26,
+                                                                                                      27,
+                                                                                                      28,
+                                                                                                      29,
+                                                                                                      30,
+                                                                                                      31,
+                                                                                                      32,
+                                                                                                      33,
+                                                                                                      34,
+                                                                                                      35,
+                                                                                                      36,
+                                                                                                      37,
+                                                                                                      38,
+                                                                                                      39,
+                                                                                                      40,
+                                                                                                      41,
+                                                                                                      42,
+                                                                                                      43,
+                                                                                                      44,
+                                                                                                      45,
+                                                                                                      46,
+                                                                                                      47,
+                                                                                                      48,
+                                                                                                      49,
+                                                                                                      50,
+                                                                                                      51,
+                                                                                                      52,
+                                                                                                      53,
+                                                                                                      54,
+                                                                                                      55,
+                                                                                                      56,
+                                                                                                      57,
+                                                                                                      58,
+                                                                                                      59,
+                                                                                                      60,
+                                                                                                      61,
+                                                                                                      62,
+                                                                                                      63,
+                                                                                                      64,
+                                                                                                      65,
+                                                                                                      66,
+                                                                                                      67,
+                                                                                                      68,
+                                                                                                      69,
+                                                                                                      70,
+                                                                                                      71,
+                                                                                                      72,
+                                                                                                      73,
+                                                                                                      74,
+                                                                                                      75,
+                                                                                                      76,
+                                                                                                      77,
+                                                                                                      78,
+                                                                                                      79],
+                                                                         'task_id': 0,
+                                                                         'train_episode_ids': [0,
+                                                                                               1,
+                                                                                               2,
+                                                                                               3,
+                                                                                               4,
+                                                                                               5,
+                                                                                               6,
+                                                                                               7,
+                                                                                               8,
+                                                                                               9,
+                                                                                               10,
+                                                                                               11,
+                                                                                               12,
+                                                                                               13,
+                                                                                               14,
+                                                                                               15,
+                                                                                               16,
+                                                                                               17,
+                                                                                               18,
+                                                                                               19,
+                                                                                               20,
+                                                                                               21,
+                                                                                               22,
+                                                                                               23,
+                                                                                               24,
+                                                                                               25,
+                                                                                               26,
+                                                                                               27,
+                                                                                               28,
+                                                                                               29,
+                                                                                               30,
+                                                                                               31,
+                                                                                               32,
+                                                                                               33,
+                                                                                               34,
+                                                                                               35,
+                                                                                               36,
+                                                                                               37,
+                                                                                               38,
+                                                                                               39,
+                                                                                               40,
+                                                                                               41,
+                                                                                               42,
+                                                                                               43,
+                                                                                               44,
+                                                                                               45,
+                                                                                               46,
+                                                                                               47,
+                                                                                               48,
+                                                                                               49,
+                                                                                               50,
+                                                                                               51,
+                                                                                               52,
+                                                                                               53,
+                                                                                               54,
+                                                                                               55,
+                                                                                               56,
+                                                                                               57,
+                                                                                               58,
+                                                                                               59,
+                                                                                               60,
+                                                                                               61,
+                                                                                               62,
+                                                                                               63,
+                                                                                               64,
+                                                                                               65,
+                                                                                               66,
+                                                                                               67,
+                                                                                               68,
+                                                                                               69,
+                                                                                               70,
+                                                                                               71,
+                                                                                               72,
+                                                                                               73,
+                                                                                               74,
+                                                                                               75,
+                                                                                               76,
+                                                                                               77,
+                                                                                               78,
+                                                                                               79],
+                                                                         'val_episode_ids': [80,
+                                                                                             81,
+                                                                                             82,
+                                                                                             83,
+                                                                                             84,
+                                                                                             85,
+                                                                                             86,
+                                                                                             87,
+                                                                                             88,
+                                                                                             89]}],
+                                                              'track': 'robocasa_stand_mixer_peak',
+                                                              'val_episodes_per_task': 10,
+                                                              'video_pool': 'data/autorobobench/robocasa_stand_mixer_peak_video_pool.json'},
+ 'data/autorobobench/robocasa_stand_mixer_peak_video_pool.json': {'benchmark': 'autorobobench-v0',
+                                                                  'contains_actions': False,
+                                                                  'contains_proprio': False,
+                                                                  'contains_rgb_video': True,
+                                                                  'kind': 'action_free_generic_robot_video',
+                                                                  'notes': ['This pool is the optional generic '
+                                                                            'RGB-only input for the stand-mixer peak '
+                                                                            'task.',
+                                                                            'It omits actions, proprio, parquet paths, '
+                                                                            'and the target stand-mixer task.',
+                                                                            'The policy may ignore this pool and train '
+                                                                            'only from the task-specific cloning '
+                                                                            'split.'],
+                                                                  'source': 'RoboCasa v1.0 pretrain atomic task videos',
+                                                                  'target_task_alias': 'PickPlaceCounterToStandMixer',
+                                                                  'target_task_included': False,
+                                                                  'tasks': [{'alias': 'OpenDrawer',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'CloseDrawer',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseDrawer/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'PickPlaceCounterToStove',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToStove/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'TurnOffStove',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOffStove/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'PickPlaceCounterToCabinet',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToCabinet/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'OpenCabinet',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenCabinet/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'CloseCabinet',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseCabinet/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'OpenFridge',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenFridge/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]},
+                                                                            {'alias': 'CloseFridge',
+                                                                             'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseFridge/20250819/lerobot',
+                                                                             'video_episode_range': [0, 79]}],
+                                                                  'track': 'robocasa_stand_mixer_peak',
+                                                                  'views': ['robot0_agentview_left',
+                                                                            'robot0_agentview_right']},
+ 'data/autorobobench/robocasa_world_model_policy_set.json': {'description': 'Auto-discovered real RoboCasa BC-5 '
+                                                                            'policies with real simulator eval JSONs. '
+                                                                            'Trace paths are materialized by '
+                                                                            'tasks/robocasa_world_model/eval.py when '
+                                                                            'run in a RoboCasa runtime.',
+                                                             'policies': [{'checkpoint': 'runs/autorobobench/robocasa_bc5/autoresearch_clip_recede4_open_only/policy_best.pt',
+                                                                           'inference': 'tasks.robocasa_bc5.inference',
+                                                                           'name': 'autoresearch_clip_recede4_open_only',
+                                                                           'ood': True,
+                                                                           'real_eval_json': 'runs/autorobobench/robocasa_bc5/autoresearch_clip_recede4_open_only/eval_10_per_task_local.json',
+                                                                           'real_success_rate': 0.14},
+                                                                          {'checkpoint': 'runs/autorobobench/robocasa_bc5/autoresearch_ensemble_clip_smol/policy_best.pt',
+                                                                           'inference': 'tasks.robocasa_bc5.inference',
+                                                                           'name': 'autoresearch_ensemble_clip_smol',
+                                                                           'ood': True,
+                                                                           'real_eval_json': 'runs/autorobobench/robocasa_bc5/autoresearch_ensemble_clip_smol/eval_10_per_task_local.json',
+                                                                           'real_success_rate': 0.12},
+                                                                          {'checkpoint': 'runs/autorobobench/robocasa_bc5/autoresearch_full_history_act_seed0/policy_best.pt',
+                                                                           'inference': 'tasks.robocasa_bc5.inference',
+                                                                           'name': 'autoresearch_full_history_act_seed0',
+                                                                           'ood': True,
+                                                                           'real_eval_json': 'runs/autorobobench/robocasa_bc5/autoresearch_full_history_act_seed0/eval_10_per_task_local.json',
+                                                                           'real_success_rate': 0.08},
+                                                                          {'checkpoint': 'runs/autorobobench/robocasa_bc5/clip_5min_seed0/policy_best.pt',
+                                                                           'inference': 'tasks.robocasa_bc5.inference',
+                                                                           'name': 'clip_5min_seed0',
+                                                                           'ood': False,
+                                                                           'real_eval_json': 'runs/autorobobench/robocasa_bc5/clip_5min_seed0/eval_10_per_task_local.json',
+                                                                           'real_success_rate': 0.12},
+                                                                          {'checkpoint': 'runs/autorobobench/robocasa_bc5/smolvlm2_5min_seed0/policy_best.pt',
+                                                                           'inference': 'tasks.robocasa_bc5.inference',
+                                                                           'name': 'smolvlm2_5min_seed0',
+                                                                           'ood': False,
+                                                                           'real_eval_json': 'runs/autorobobench/robocasa_bc5/smolvlm2_5min_seed0/eval_10_per_task_local.json',
+                                                                           'real_success_rate': 0.12}],
+                                                             'task': 'robocasa_world_model_policy_set'},
+ 'data/autorobobench/robocasa_world_model_video_pool.json': {'benchmark': 'autorobobench-v0',
+                                                             'contains_actions': False,
+                                                             'contains_proprio': False,
+                                                             'contains_rgb_video': True,
+                                                             'contains_state': False,
+                                                             'default_action_train_rollouts_per_task': 20,
+                                                             'in_task_video_only_demo_count': 300,
+                                                             'kind': 'action_free_domain_robot_video',
+                                                             'notes': ['This pool is optional. Baseline world-model '
+                                                                       'training ignores it unless the mutable train '
+                                                                       'code opts in.',
+                                                                       'The pool intentionally exposes RGB video paths '
+                                                                       'only; benchmark-compliant methods should not '
+                                                                       'read actions, states, task labels, or proprio '
+                                                                       'for these episodes.',
+                                                                       'Using this pool for action-conditioned '
+                                                                       'world-model learning requires an auxiliary '
+                                                                       'strategy such as inverse dynamics, video '
+                                                                       'representation learning, latent consistency, '
+                                                                       'or self-supervised future prediction.',
+                                                                       'In-task video episodes start at 20 so they do '
+                                                                       'not overlap the default 20 action-labeled '
+                                                                       'train rollouts per task.'],
+                                                             'related_task_video_only_demo_count': 534,
+                                                             'source': 'RoboCasa v1.0 pretrain atomic task videos',
+                                                             'tasks': [{'alias': 'OpenDrawer',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenDrawer/20250819/lerobot',
+                                                                        'description': 'Open a kitchen drawer.',
+                                                                        'split': 'in_task',
+                                                                        'task_id': 0,
+                                                                        'video_episode_range': [20, 79]},
+                                                                       {'alias': 'CloseDrawer',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseDrawer/20250819/lerobot',
+                                                                        'description': 'Close a kitchen drawer.',
+                                                                        'split': 'in_task',
+                                                                        'task_id': 1,
+                                                                        'video_episode_range': [20, 79]},
+                                                                       {'alias': 'CloseFridge',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseFridge/20250819/lerobot',
+                                                                        'description': 'Close a fridge door.',
+                                                                        'split': 'in_task',
+                                                                        'task_id': 2,
+                                                                        'video_episode_range': [20, 79]},
+                                                                       {'alias': 'TurnOffStove',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOffStove/20250819/lerobot',
+                                                                        'description': 'Turn a stove knob off.',
+                                                                        'split': 'in_task',
+                                                                        'task_id': 3,
+                                                                        'video_episode_range': [20, 79]},
+                                                                       {'alias': 'PickPlaceCounterToCabinet',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToCabinet/20250819/lerobot',
+                                                                        'description': 'Pick an object from the '
+                                                                                       'counter and place it into a '
+                                                                                       'cabinet region.',
+                                                                        'split': 'in_task',
+                                                                        'task_id': 4,
+                                                                        'video_episode_range': [20, 79]},
+                                                                       {'alias': 'OpenCabinet',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenCabinet/20250819/lerobot',
+                                                                        'description': 'Open a kitchen cabinet.',
+                                                                        'split': 'related_task',
+                                                                        'task_id': 100,
+                                                                        'video_episode_range': [0, 106]},
+                                                                       {'alias': 'CloseCabinet',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseCabinet/20250819/lerobot',
+                                                                        'description': 'Close a kitchen cabinet.',
+                                                                        'split': 'related_task',
+                                                                        'task_id': 101,
+                                                                        'video_episode_range': [0, 104]},
+                                                                       {'alias': 'OpenFridge',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenFridge/20250819/lerobot',
+                                                                        'description': 'Open a fridge door.',
+                                                                        'split': 'related_task',
+                                                                        'task_id': 102,
+                                                                        'video_episode_range': [0, 104]},
+                                                                       {'alias': 'PickPlaceCounterToMicrowave',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToMicrowave/20250819/lerobot',
+                                                                        'description': 'Pick an object from the '
+                                                                                       'counter and place it into a '
+                                                                                       'microwave.',
+                                                                        'split': 'related_task',
+                                                                        'task_id': 104,
+                                                                        'video_episode_range': [0, 109]},
+                                                                       {'alias': 'TurnOnSinkFaucet',
+                                                                        'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOnSinkFaucet/20250819/lerobot',
+                                                                        'description': 'Turn on a sink faucet.',
+                                                                        'split': 'related_task',
+                                                                        'task_id': 105,
+                                                                        'video_episode_range': [0, 106]}],
+                                                             'track': 'robocasa_world_model',
+                                                             'video_only_demo_count': 834,
+                                                             'video_path_template': 'videos/chunk-000/observation.images.{view}/episode_{episode_id:06d}.mp4',
+                                                             'views': ['robot0_agentview_left',
+                                                                       'robot0_agentview_right']},
+ 'data/autorobobench/video_policy_transfer_splits.json': {'benchmark': 'autorobobench-v0',
+                                                          'eval_episodes_per_task': 10,
+                                                          'manifest': 'data/robocasa5/manifest.json',
+                                                          'notes': ['The paired-action split is intentionally tiny: 2 '
+                                                                    'demonstrations per task, 10 total.',
+                                                                    'The domain-specific video-only split is 78 '
+                                                                    'RoboCasa kitchen robot videos per task, 390 '
+                                                                    'total, for a 39x unique video-to-action-demo '
+                                                                    'ratio.',
+                                                                    'Video-only data must be consumed through the '
+                                                                    'action-free video_pool manifest. It exposes RGB '
+                                                                    'paths and task metadata, not actions.',
+                                                                    'Closed-loop success remains the primary score; '
+                                                                    'high success should implicitly require using the '
+                                                                    'much larger video pool.'],
+                                                          'paired_action_train_episodes_per_task': 2,
+                                                          'seed': 20260619,
+                                                          'tasks': [{'alias': 'OpenCabinet',
+                                                                     'eval_episode_ids': [90,
+                                                                                          91,
+                                                                                          92,
+                                                                                          93,
+                                                                                          94,
+                                                                                          95,
+                                                                                          96,
+                                                                                          97,
+                                                                                          98,
+                                                                                          99],
+                                                                     'paired_train_episode_ids': [0, 1],
+                                                                     'task_id': 0,
+                                                                     'train_episode_ids': [0, 1],
+                                                                     'val_episode_ids': [80,
+                                                                                         81,
+                                                                                         82,
+                                                                                         83,
+                                                                                         84,
+                                                                                         85,
+                                                                                         86,
+                                                                                         87,
+                                                                                         88,
+                                                                                         89],
+                                                                     'video_only_episode_range': [2, 79]},
+                                                                    {'alias': 'CloseDrawer',
+                                                                     'eval_episode_ids': [90,
+                                                                                          91,
+                                                                                          92,
+                                                                                          93,
+                                                                                          94,
+                                                                                          95,
+                                                                                          96,
+                                                                                          97,
+                                                                                          98,
+                                                                                          99],
+                                                                     'paired_train_episode_ids': [0, 1],
+                                                                     'task_id': 1,
+                                                                     'train_episode_ids': [0, 1],
+                                                                     'val_episode_ids': [80,
+                                                                                         81,
+                                                                                         82,
+                                                                                         83,
+                                                                                         84,
+                                                                                         85,
+                                                                                         86,
+                                                                                         87,
+                                                                                         88,
+                                                                                         89],
+                                                                     'video_only_episode_range': [2, 79]},
+                                                                    {'alias': 'CloseFridge',
+                                                                     'eval_episode_ids': [90,
+                                                                                          91,
+                                                                                          92,
+                                                                                          93,
+                                                                                          94,
+                                                                                          95,
+                                                                                          96,
+                                                                                          97,
+                                                                                          98,
+                                                                                          99],
+                                                                     'paired_train_episode_ids': [0, 1],
+                                                                     'task_id': 2,
+                                                                     'train_episode_ids': [0, 1],
+                                                                     'val_episode_ids': [80,
+                                                                                         81,
+                                                                                         82,
+                                                                                         83,
+                                                                                         84,
+                                                                                         85,
+                                                                                         86,
+                                                                                         87,
+                                                                                         88,
+                                                                                         89],
+                                                                     'video_only_episode_range': [2, 79]},
+                                                                    {'alias': 'TurnOffStove',
+                                                                     'eval_episode_ids': [90,
+                                                                                          91,
+                                                                                          92,
+                                                                                          93,
+                                                                                          94,
+                                                                                          95,
+                                                                                          96,
+                                                                                          97,
+                                                                                          98,
+                                                                                          99],
+                                                                     'paired_train_episode_ids': [0, 1],
+                                                                     'task_id': 3,
+                                                                     'train_episode_ids': [0, 1],
+                                                                     'val_episode_ids': [80,
+                                                                                         81,
+                                                                                         82,
+                                                                                         83,
+                                                                                         84,
+                                                                                         85,
+                                                                                         86,
+                                                                                         87,
+                                                                                         88,
+                                                                                         89],
+                                                                     'video_only_episode_range': [2, 79]},
+                                                                    {'alias': 'PickPlaceCounterToCabinet',
+                                                                     'eval_episode_ids': [90,
+                                                                                          91,
+                                                                                          92,
+                                                                                          93,
+                                                                                          94,
+                                                                                          95,
+                                                                                          96,
+                                                                                          97,
+                                                                                          98,
+                                                                                          99],
+                                                                     'paired_train_episode_ids': [0, 1],
+                                                                     'task_id': 4,
+                                                                     'train_episode_ids': [0, 1],
+                                                                     'val_episode_ids': [80,
+                                                                                         81,
+                                                                                         82,
+                                                                                         83,
+                                                                                         84,
+                                                                                         85,
+                                                                                         86,
+                                                                                         87,
+                                                                                         88,
+                                                                                         89],
+                                                                     'video_only_episode_range': [2, 79]}],
+                                                          'track': 'video_policy_transfer',
+                                                          'val_episodes_per_task': 10,
+                                                          'video_only_train_episodes_per_task': 78,
+                                                          'video_pool': 'data/autorobobench/video_policy_transfer_video_pool.json'},
+ 'data/autorobobench/video_policy_transfer_video_pool.json': {'benchmark': 'autorobobench-v0',
+                                                              'contains_actions': False,
+                                                              'contains_proprio': False,
+                                                              'contains_rgb_video': True,
+                                                              'kind': 'action_free_domain_robot_video',
+                                                              'notes': ['This manifest is the intended interface for '
+                                                                        'video-only methods in this track.',
+                                                                        'It intentionally omits parquet paths, action '
+                                                                        'keys, state keys, and any action-bearing file '
+                                                                        'references.',
+                                                                        'The underlying local RoboCasa install may '
+                                                                        'contain actions for these episodes, but '
+                                                                        'benchmark-compliant agents should not access '
+                                                                        'them.',
+                                                                        'The demo-count ratio is 92.4x, but the '
+                                                                        'benchmark target is frame/time ratio; the '
+                                                                        'verified frame ratio is above 100x.'],
+                                                              'paired_action_demo_count': 10,
+                                                              'paired_action_frame_count': 2418,
+                                                              'source': 'RoboCasa v1.0 pretrain atomic task videos',
+                                                              'tasks': [{'alias': 'OpenCabinet',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenCabinet/20250819/lerobot',
+                                                                         'description': 'Open a kitchen cabinet.',
+                                                                         'task_id': 0,
+                                                                         'video_episode_range': [2, 79]},
+                                                                        {'alias': 'CloseDrawer',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseDrawer/20250819/lerobot',
+                                                                         'description': 'Close a kitchen drawer.',
+                                                                         'task_id': 1,
+                                                                         'video_episode_range': [2, 79]},
+                                                                        {'alias': 'CloseFridge',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseFridge/20250819/lerobot',
+                                                                         'description': 'Close a fridge door.',
+                                                                         'task_id': 2,
+                                                                         'video_episode_range': [2, 79]},
+                                                                        {'alias': 'TurnOffStove',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOffStove/20250819/lerobot',
+                                                                         'description': 'Turn a stove knob off.',
+                                                                         'task_id': 3,
+                                                                         'video_episode_range': [2, 79]},
+                                                                        {'alias': 'PickPlaceCounterToCabinet',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToCabinet/20250819/lerobot',
+                                                                         'description': 'Pick an object from the '
+                                                                                        'counter and place it into a '
+                                                                                        'cabinet region.',
+                                                                         'task_id': 4,
+                                                                         'video_episode_range': [2, 79]},
+                                                                        {'alias': 'CloseCabinet',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseCabinet/20250819/lerobot',
+                                                                         'description': 'Close a kitchen cabinet.',
+                                                                         'task_id': 101,
+                                                                         'video_episode_range': [0, 104]},
+                                                                        {'alias': 'OpenFridge',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenFridge/20250819/lerobot',
+                                                                         'description': 'Open a fridge door.',
+                                                                         'task_id': 102,
+                                                                         'video_episode_range': [0, 104]},
+                                                                        {'alias': 'PickPlaceCounterToMicrowave',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToMicrowave/20250819/lerobot',
+                                                                         'description': 'Pick an object from the '
+                                                                                        'counter and place it into a '
+                                                                                        'microwave.',
+                                                                         'task_id': 104,
+                                                                         'video_episode_range': [0, 109]},
+                                                                        {'alias': 'TurnOnSinkFaucet',
+                                                                         'dataset_path': 'third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOnSinkFaucet/20250819/lerobot',
+                                                                         'description': 'Turn on a sink faucet.',
+                                                                         'task_id': 105,
+                                                                         'video_episode_range': [0, 106]}],
+                                                              'track': 'video_policy_transfer',
+                                                              'unique_video_to_paired_ratio': 92.4,
+                                                              'video_only_demo_count': 924,
+                                                              'video_only_frame_count': 250870,
+                                                              'video_to_paired_frame_ratio': 103.75103391232423,
+                                                              'views': ['robot0_agentview_left',
+                                                                        'robot0_agentview_right']},
+ 'data/robocasa5/manifest.json': {'action_dim': 7,
+                                  'benchmark': 'robocasa5',
+                                  'notes': ['Built from the RoboCasa registry via '
+                                            'robocasa.utils.dataset_registry_utils.get_ds_meta.',
+                                            'Datasets are expected in LeRobot format under the local RoboCasa dataset '
+                                            'base path.',
+                                            'selected_demos may be smaller than available_demos for policy training.'],
+                                  'policy_demos_per_task': 50,
+                                  'source': 'human',
+                                  'split': 'pretrain',
+                                  'suite': 'robocasa',
+                                  'task_count': 5,
+                                  'tasks': [{'alias': 'OpenCabinet',
+                                             'available_demos': 107,
+                                             'available_views': ['robot0_agentview_left', 'robot0_agentview_right'],
+                                             'dataset_path': '/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/OpenCabinet/20250819/lerobot',
+                                             'description': 'Open a kitchen cabinet.',
+                                             'exists': True,
+                                             'filter_key': '100_demos',
+                                             'horizon': 1050,
+                                             'registered_demos': 100,
+                                             'robocasa_task': 'OpenCabinet',
+                                             'selected_demos': 50,
+                                             'source': 'human',
+                                             'split': 'pretrain',
+                                             'task_id': 0},
+                                            {'alias': 'CloseDrawer',
+                                             'available_demos': 110,
+                                             'available_views': ['robot0_agentview_left', 'robot0_agentview_right'],
+                                             'dataset_path': '/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseDrawer/20250819/lerobot',
+                                             'description': 'Close a kitchen drawer.',
+                                             'exists': True,
+                                             'filter_key': '100_demos',
+                                             'horizon': 450,
+                                             'registered_demos': 100,
+                                             'robocasa_task': 'CloseDrawer',
+                                             'selected_demos': 50,
+                                             'source': 'human',
+                                             'split': 'pretrain',
+                                             'task_id': 1},
+                                            {'alias': 'CloseFridge',
+                                             'available_demos': 106,
+                                             'available_views': ['robot0_agentview_left', 'robot0_agentview_right'],
+                                             'dataset_path': '/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/CloseFridge/20250819/lerobot',
+                                             'description': 'Close a fridge door.',
+                                             'exists': True,
+                                             'filter_key': '100_demos',
+                                             'horizon': 900,
+                                             'registered_demos': 100,
+                                             'robocasa_task': 'CloseFridge',
+                                             'selected_demos': 50,
+                                             'source': 'human',
+                                             'split': 'pretrain',
+                                             'task_id': 2},
+                                            {'alias': 'TurnOffStove',
+                                             'available_demos': 109,
+                                             'available_views': ['robot0_agentview_left', 'robot0_agentview_right'],
+                                             'dataset_path': '/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/TurnOffStove/20250819/lerobot',
+                                             'description': 'Turn a stove knob off.',
+                                             'exists': True,
+                                             'filter_key': '100_demos',
+                                             'horizon': 750,
+                                             'registered_demos': 100,
+                                             'robocasa_task': 'TurnOffStove',
+                                             'selected_demos': 50,
+                                             'source': 'human',
+                                             'split': 'pretrain',
+                                             'task_id': 3},
+                                            {'alias': 'PickPlaceCounterToCabinet',
+                                             'available_demos': 108,
+                                             'available_views': ['robot0_agentview_left', 'robot0_agentview_right'],
+                                             'dataset_path': '/Users/almondgod/robot-autoresearch/third_party/robocasa/datasets/v1.0/pretrain/atomic/PickPlaceCounterToCabinet/20250819/lerobot',
+                                             'description': 'Pick an object from the counter and place it into a '
+                                                            'cabinet region.',
+                                             'exists': True,
+                                             'filter_key': '100_demos',
+                                             'horizon': 750,
+                                             'registered_demos': 100,
+                                             'robocasa_task': 'PickPlaceCounterToCabinet',
+                                             'selected_demos': 50,
+                                             'source': 'human',
+                                             'split': 'pretrain',
+                                             'task_id': 4}],
+                                  'total_available_demos': 540,
+                                  'total_registered_demos': 500,
+                                  'total_selected_demos': 250,
+                                  'views': ['robot0_agentview_left', 'robot0_agentview_right']}}
 
-JSON_FILES = (
-    "data/robocasa5/manifest.json",
-    "data/autorobobench/robocasa_bc5_splits.json",
-    "data/autorobobench/robocasa_long_horizon_manifest.json",
-    "data/autorobobench/robocasa_long_horizon_splits.json",
-    "data/autorobobench/video_policy_transfer_splits.json",
-    "data/autorobobench/video_policy_transfer_video_pool.json",
-    "data/autorobobench/robocasa_world_model_policy_set.json",
-    "data/autorobobench/robocasa_world_model_video_pool.json",
-    "data/autorobobench/robocasa_faucet_peak_manifest.json",
-    "data/autorobobench/robocasa_faucet_peak_splits.json",
-    "data/autorobobench/robocasa_faucet_peak_video_pool.json",
-    "data/autorobobench/robocasa_stand_mixer_peak_manifest.json",
-    "data/autorobobench/robocasa_stand_mixer_peak_splits.json",
-    "data/autorobobench/robocasa_stand_mixer_peak_video_pool.json",
-    "data/autorobobench/robocasa_choose_measuring_cup_language_manifest.json",
-    "data/autorobobench/robocasa_choose_measuring_cup_language_splits.json",
-)
+BENCHMARK_SPEC: dict[str, Any] = {'description': 'RoboCasa benchmark suite definitions and scoring inputs.',
+ 'name': 'AutoRoboBench',
+ 'suites': {'autorobobench_v0': {'total_points': 140,
+                                 'tracks': [{'id': 'robocasa_bc5',
+                                             'task_spec': 'tasks/robocasa_bc5/task.json',
+                                             'weight': 30},
+                                            {'id': 'robocasa_long_horizon',
+                                             'task_spec': 'tasks/robocasa_long_horizon/task.json',
+                                             'weight': 40},
+                                            {'id': 'video_policy_transfer',
+                                             'task_spec': 'tasks/video_policy_transfer/task.json',
+                                             'weight': 30},
+                                            {'id': 'robocasa_world_model',
+                                             'task_spec': 'tasks/robocasa_world_model/task.json',
+                                             'weight': 20},
+                                            {'id': 'robocasa_choose_measuring_cup_language',
+                                             'task_spec': 'tasks/robocasa_choose_measuring_cup_language/task.json',
+                                             'weight': 20}],
+                                 'version': 'autorobobench-v0'},
+            'visual_world_model_v0': {'total_points': 20,
+                                      'tracks': [{'id': 'robocasa_visual_world_model',
+                                                  'task_spec': 'tasks/robocasa_visual_world_model/task.json',
+                                                  'weight': 20}],
+                                      'version': 'autorobobench-visual-world-model-v0'},
+            'world_model_posttraining_v0': {'total_points': 20,
+                                            'tracks': [{'id': 'robocasa_world_model_posttraining',
+                                                        'task_spec': 'tasks/robocasa_world_model_posttraining/task.json',
+                                                        'weight': 20}],
+                                            'version': 'autorobobench-world-model-posttraining-v0'}},
+ 'version': 'v0'}
 
 METADATA_SETUP_COMMANDS = (
     ("robocasa_bc5", ("tasks/robocasa_bc5/setup.py",)),
@@ -65,14 +5009,6 @@ DATA_SETUP_COMMANDS = (
     ("robocasa_visual_world_model", ("tasks/robocasa_visual_world_model/setup.py",)),
 )
 
-MANIFESTS_FOR_DOWNLOAD = (
-    "data/robocasa5/manifest.json",
-    "data/autorobobench/robocasa_long_horizon_manifest.json",
-    "data/autorobobench/robocasa_faucet_peak_manifest.json",
-    "data/autorobobench/robocasa_stand_mixer_peak_manifest.json",
-    "data/autorobobench/robocasa_choose_measuring_cup_language_manifest.json",
-)
-
 
 def main() -> None:
     if _called_for_packaging():
@@ -81,48 +5017,48 @@ def main() -> None:
         setup()
         return
 
-    parser = argparse.ArgumentParser(
-        description="Universal setup and verifier for the AutoRoboBench RoboCasa benchmark."
-    )
+    parser = argparse.ArgumentParser(description="Setup and measure the AutoRoboBench RoboCasa benchmark.")
     parser.add_argument("--verify", action="store_true", help="Verify local RoboCasa dataset files, not just metadata.")
-    parser.add_argument("--download-robocasa", action="store_true", help="Download the RoboCasa tasks referenced by checked-in manifests.")
+    parser.add_argument("--download-robocasa", action="store_true", help="Download the RoboCasa tasks referenced by generated manifests.")
     parser.add_argument("--yes", action="store_true", help="Answer yes to RoboCasa downloader confirmation prompts.")
-    parser.add_argument("--rebuild-bc5-manifest", action="store_true", help="Rebuild data/robocasa5/manifest.json from the local RoboCasa registry.")
-    parser.add_argument("--skip-task-setup", action="store_true", help="Only check dependencies, JSON, and configs.")
+    parser.add_argument("--skip-task-setup", action="store_true", help="Only check dependencies, generated JSON, and benchmark metadata.")
+    parser.add_argument("--describe-benchmark", action="store_true", help="Print benchmark suite and track metadata, then exit.")
+    parser.add_argument("--score-results", default="", help="Score a benchmark results JSON, then exit.")
+    parser.add_argument("--suite", default="autorobobench_v0", help="Suite key inside benchmark.json for describe/score/hash commands.")
+    parser.add_argument("--hash-manifest", action="store_true", help="Hash immutable benchmark files, then exit.")
+    parser.add_argument("--out", default="", help="Optional output path for score/hash commands.")
     args = parser.parse_args()
 
     os.chdir(ROOT)
     _add_runtime_paths()
+    _write_generated_files()
+
+    if args.describe_benchmark:
+        _describe_suite(str(args.suite))
+        return
+    if args.score_results:
+        _score_results(str(args.suite), Path(args.score_results), Path(args.out) if args.out else None)
+        return
+    if args.hash_manifest:
+        _hash_manifest(str(args.suite), Path(args.out) if args.out else None)
+        return
+
     print(json.dumps({"repo": str(ROOT), "python": sys.version.split()[0]}, sort_keys=True), flush=True)
     _check_python()
     _check_imports()
-
-    if args.rebuild_bc5_manifest:
-        cmd = [sys.executable, "data/make_robocasa5.py", "--out", "data/robocasa5/manifest.json"]
-        if args.verify:
-            cmd.append("--verify-exists")
-        _run("rebuild_bc5_manifest", cmd)
 
     if args.download_robocasa:
         _download_robocasa(yes=bool(args.yes))
 
     _check_json_files()
-    _describe_configs()
+    _describe_suite("autorobobench_v0")
+    _describe_suite("visual_world_model_v0")
+    _describe_suite("world_model_posttraining_v0")
 
     if not args.skip_task_setup:
         _run_task_setups(verify=bool(args.verify))
 
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "verify_data": bool(args.verify),
-                "downloaded_robocasa": bool(args.download_robocasa),
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    )
+    print(json.dumps({"ok": True, "verify_data": bool(args.verify), "downloaded_robocasa": bool(args.download_robocasa)}, indent=2, sort_keys=True))
 
 
 def _called_for_packaging() -> bool:
@@ -148,28 +5084,37 @@ def _check_imports() -> None:
 
 
 def _add_runtime_paths() -> None:
-    for rel in ("third_party/robocasa", "third_party/robosuite"):
-        path = str(ROOT / rel)
+    for rel in ("third_party/robocasa", "third_party/robosuite", "."):
+        path = str((ROOT / rel).resolve())
         if path not in sys.path:
             sys.path.insert(0, path)
 
 
+def _write_generated_files() -> None:
+    if not BENCHMARK_PATH.exists() or json.loads(BENCHMARK_PATH.read_text()) != BENCHMARK_SPEC:
+        BENCHMARK_PATH.write_text(json.dumps(BENCHMARK_SPEC, indent=2, sort_keys=True) + "\n")
+    for rel, payload in GENERATED_JSON.items():
+        path = ROOT / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            try:
+                if json.loads(path.read_text()) == payload:
+                    continue
+            except ValueError:
+                pass
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def _check_json_files() -> None:
     checked = []
-    for rel in JSON_FILES:
+    for rel in sorted(GENERATED_JSON):
         path = ROOT / rel
         if not path.exists():
-            raise FileNotFoundError(f"missing required JSON file: {rel}")
+            raise FileNotFoundError(f"missing generated JSON file: {rel}")
         json.loads(path.read_text())
         checked.append(rel)
-    print(json.dumps({"json_files_checked": checked}, indent=2, sort_keys=True), flush=True)
-
-
-def _describe_configs() -> None:
-    for rel in CONFIGS:
-        if not (ROOT / rel).exists():
-            continue
-        _run(f"describe:{rel}", [sys.executable, "-m", "autorobobench.cli", "describe", "--config", rel])
+    json.loads(BENCHMARK_PATH.read_text())
+    print(json.dumps({"json_files_checked": checked, "benchmark": str(BENCHMARK_PATH)}, indent=2, sort_keys=True), flush=True)
 
 
 def _run_task_setups(*, verify: bool) -> None:
@@ -190,31 +5135,20 @@ def _supports_verify(path: Path) -> bool:
 
 
 def _download_robocasa(*, yes: bool) -> None:
+    if importlib.util.find_spec("robocasa") is None:
+        raise ModuleNotFoundError("RoboCasa is not installed. Install the robocasa extra or make third_party/robocasa importable.")
     tasks = sorted(_manifest_tasks())
     if not tasks:
-        raise ValueError("no RoboCasa tasks found in checked-in manifests")
-    cmd = [
-        sys.executable,
-        "data/download_robocasa.py",
-        "--tasks",
-        *tasks,
-        "--split",
-        "pretrain",
-        "--source",
-        "human",
-    ]
-    if yes:
-        cmd.append("--yes")
-    _run("download_robocasa", cmd)
+        raise ValueError("no RoboCasa tasks found in generated manifests")
+    cmd = [sys.executable, "-m", "robocasa.scripts.download_datasets", "--tasks", *tasks, "--split", "pretrain", "--source", "human"]
+    _run("download_robocasa", cmd, input_text="y\n" if yes else None)
 
 
 def _manifest_tasks() -> set[str]:
     tasks: set[str] = set()
-    for rel in MANIFESTS_FOR_DOWNLOAD:
-        path = ROOT / rel
-        if not path.exists():
+    for rel, payload in GENERATED_JSON.items():
+        if not rel.endswith("manifest.json"):
             continue
-        payload = json.loads(path.read_text())
         for task in payload.get("tasks", []):
             name = task.get("robocasa_task") or task.get("alias")
             if name:
@@ -222,14 +5156,167 @@ def _manifest_tasks() -> set[str]:
     return tasks
 
 
-def _run(label: str, cmd: list[str]) -> None:
+def _suite(name: str) -> dict[str, Any]:
+    suites = BENCHMARK_SPEC.get("suites", {})
+    if name not in suites:
+        raise KeyError(f"unknown benchmark suite {name!r}; available: {sorted(suites)}")
+    return suites[name]
+
+
+def _expanded_tracks(suite_name: str) -> list[dict[str, Any]]:
+    tracks = []
+    for item in _suite(suite_name).get("tracks", []):
+        track = dict(item)
+        spec_path = track.get("task_spec")
+        if spec_path:
+            spec = json.loads((ROOT / spec_path).read_text())
+            merged = dict(spec.get("benchmark", {}))
+            merged.update(track)
+            merged.setdefault("id", spec.get("id"))
+            merged.setdefault("name", spec.get("name"))
+            merged.setdefault("primary_metric", spec.get("metrics", {}).get("primary", spec.get("starter_metric", "score")))
+            merged.setdefault("starter_metric", spec.get("starter_metric", 0.0))
+            merged.setdefault("reference_metric", spec.get("reference_metric", 1.0))
+            merged.setdefault("higher_is_better", True)
+            merged.setdefault("score_weights", {merged["primary_metric"]: 1.0})
+            merged.setdefault("required_result_keys", list(merged.get("score_weights", {})))
+            tracks.append(merged)
+        else:
+            tracks.append(track)
+    return tracks
+
+
+def _describe_suite(suite_name: str) -> None:
+    suite = _suite(suite_name)
+    payload = {
+        "suite": suite_name,
+        "version": suite.get("version"),
+        "total_points": suite.get("total_points", sum(float(t.get("weight", 0.0)) for t in suite.get("tracks", []))),
+        "tracks": [
+            {
+                "id": track.get("id"),
+                "name": track.get("name"),
+                "phase": track.get("phase", 1),
+                "task_spec": track.get("task_spec", ""),
+                "weight": track.get("weight", 0.0),
+                "primary_metric": track.get("primary_metric"),
+                "starter_metric": track.get("starter_metric", 0.0),
+                "reference_metric": track.get("reference_metric", 1.0),
+            }
+            for track in _expanded_tracks(suite_name)
+        ],
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True), flush=True)
+
+
+def _score_results(suite_name: str, results_path: Path, out: Path | None) -> None:
+    results = json.loads(results_path.read_text())
+    result_tracks = results.get("tracks", results)
+    scored_tracks = []
+    total = 0.0
+    max_total = 0.0
+    for track in _expanded_tracks(suite_name):
+        weight = float(track.get("weight", 0.0))
+        max_total += weight
+        payload = result_tracks.get(str(track.get("id")))
+        if payload is None:
+            scored_tracks.append({"track_id": track.get("id"), "points": 0.0, "max_points": weight, "missing": True})
+            continue
+        scored = _score_track(track, payload)
+        total += float(scored["points"])
+        scored_tracks.append(scored)
+    scored_payload = {
+        "suite": suite_name,
+        "score": total,
+        "max_score": max_total,
+        "normalized_score": total / max_total if max_total > 0 else 0.0,
+        "tracks": scored_tracks,
+    }
+    _emit_json(scored_payload, out)
+
+
+def _score_track(track: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    weights = track.get("score_weights") or {track.get("primary_metric", "score"): 1.0}
+    components = {key: _component_value(track, result, key) for key in weights}
+    denom = sum(float(value) for value in weights.values()) or 1.0
+    task_score = sum(float(weights[key]) * float(value) for key, value in components.items()) / denom
+    task_score = max(0.0, min(1.0, task_score))
+    missing = [key for key in track.get("required_result_keys", weights.keys()) if key not in result]
+    integrity = float(result.get("reproducibility_integrity", 1.0))
+    if missing:
+        integrity = min(integrity, 0.5)
+    points = float(track.get("weight", 0.0)) * task_score
+    return {
+        "track_id": track.get("id"),
+        "name": track.get("name"),
+        "points": points,
+        "max_points": float(track.get("weight", 0.0)),
+        "task_score": task_score,
+        "components": components,
+        "missing_required_keys": missing,
+        "primary_metric": track.get("primary_metric"),
+        "primary_metric_value": result.get(str(track.get("primary_metric"))),
+        "reproducibility_integrity": integrity,
+    }
+
+
+def _component_value(track: dict[str, Any], result: dict[str, Any], key: str) -> float:
+    if key == "normalized_primary_progress":
+        primary = str(track.get("primary_metric"))
+        return _normalized_progress(float(result.get(primary, 0.0)), float(track.get("starter_metric", 0.0)), float(track.get("reference_metric", 1.0)), higher_is_better=bool(track.get("higher_is_better", True)))
+    return float(result.get(key, 0.0))
+
+
+def _normalized_progress(value: float, starter: float, reference: float, *, higher_is_better: bool) -> float:
+    if math.isclose(starter, reference):
+        return 0.0
+    raw = (value - starter) / (reference - starter)
+    if not higher_is_better:
+        raw = (starter - value) / (starter - reference)
+    return max(0.0, min(1.0, raw))
+
+
+def _hash_manifest(suite_name: str, out: Path | None) -> None:
+    globs = sorted({pattern for track in _expanded_tracks(suite_name) for pattern in track.get("immutable_globs", [])})
+    rows = []
+    for path in _iter_matching_files(ROOT, globs):
+        rows.append({"path": str(path.relative_to(ROOT)), "sha256": _sha256(path)})
+    _emit_json({"suite": suite_name, "files": rows}, out)
+
+
+def _iter_matching_files(root: Path, patterns: list[str]):
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = str(path.relative_to(root))
+        if any(fnmatch.fnmatch(rel, pattern) for pattern in patterns):
+            yield path
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _emit_json(payload: dict[str, Any], out: Path | None) -> None:
+    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text)
+    print(text, end="")
+
+
+def _run(label: str, cmd: list[str], input_text: str | None = None) -> None:
     env = os.environ.copy()
-    pythonpath = [str(ROOT / "third_party/robocasa"), str(ROOT / "third_party/robosuite")]
+    pythonpath = [str(ROOT / "third_party/robocasa"), str(ROOT / "third_party/robosuite"), str(ROOT)]
     if env.get("PYTHONPATH"):
         pythonpath.append(env["PYTHONPATH"])
     env["PYTHONPATH"] = os.pathsep.join(pythonpath)
     print(json.dumps({"run": label, "cmd": cmd}, sort_keys=True), flush=True)
-    subprocess.run(cmd, cwd=ROOT, env=env, check=True)
+    subprocess.run(cmd, cwd=ROOT, env=env, check=True, input=input_text, text=input_text is not None)
 
 
 if __name__ == "__main__":

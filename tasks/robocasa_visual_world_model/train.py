@@ -28,7 +28,17 @@ from tasks.robocasa_world_model.data import (
     save_json,
 )
 from tasks.robocasa_world_model.inverse_dynamics import load_inverse_dynamics
-from train.common import device_from_arg
+def device_from_arg(name: str):
+    import torch
+
+    if name == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
+
 
 
 def main() -> None:

@@ -7,10 +7,10 @@ files for scored runs.
 
 ## Common Commands
 
-Verify checked-in policy artifacts:
+Hash immutable benchmark files:
 
 ```bash
-python3 -m autorobobench.policy_artifacts --verify
+python3 setup.py --hash-manifest --suite autorobobench_v0 --out runs/autorobobench/v0_hashes.json
 ```
 
 Parallel RoboCasa rollout eval:
@@ -46,6 +46,12 @@ python3 tasks/robocasa_bc5/eval.py \
   --render-dir <render_dir> \
   --render-episodes-per-task 1 \
   --device cuda
+```
+
+Task artifact visualization:
+
+```bash
+python3 tasks/<task>/visualize.py --run-dir runs/autorobobench/<task>/<run>
 ```
 
 ## `robocasa_bc5`

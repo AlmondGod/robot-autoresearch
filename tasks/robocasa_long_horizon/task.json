@@ -1,82 +1,59 @@
 {
-  "id": "robocasa_long_horizon",
-  "name": "Long-Horizon Pick-Place-to-Microwave RoboCasa",
-  "version": "v0",
-  "setup": "tasks/robocasa_long_horizon/setup.py",
-  "train": "tasks/robocasa_long_horizon/train.py",
-  "inference": "tasks/robocasa_long_horizon/inference.py",
-  "eval": "tasks/robocasa_long_horizon/eval.py",
-  "manifest": "data/autorobobench/robocasa_long_horizon_manifest.json",
-  "split": "data/autorobobench/robocasa_long_horizon_splits.json",
-  "starter_metric": 0.05,
-  "reference_metric": 0.55,
   "benchmark": {
+    "allowed_edit_globs": [
+      "program_autorobobench.md",
+      "tasks/robocasa_long_horizon/**",
+      "tasks/robocasa_long_horizon/inference.py",
+      "tasks/robocasa_long_horizon/train.py"
+    ],
+    "higher_is_better": true,
+    "immutable_globs": [
+      "benchmark.json",
+      "data/autorobobench/robocasa_long_horizon_manifest.json",
+      "data/autorobobench/robocasa_long_horizon_splits.json",
+      "tasks/robocasa_long_horizon/eval.py",
+      "tasks/robocasa_long_horizon/setup.py",
+      "tasks/robocasa_long_horizon/task.json"
+    ],
+    "notes": "Single-task long-horizon RoboCasa manipulation track for PickPlaceCounterToMicrowave.",
     "phase": 1,
     "primary_metric": "hidden_final_success",
-    "starter_metric": 0.05,
     "reference_metric": 0.55,
-    "higher_is_better": true,
-    "score_weights": {
-      "hidden_final_success": 0.55,
-      "subgoal_progress": 0.25,
-      "improvement_auc_over_budget": 0.1,
-      "reproducibility_integrity": 0.1
-    },
     "required_result_keys": [
       "hidden_final_success",
       "subgoal_progress",
       "improvement_auc_over_budget",
       "reproducibility_integrity"
     ],
-    "allowed_edit_globs": [
-      "tasks/robocasa_long_horizon/train.py",
-      "tasks/robocasa_long_horizon/inference.py",
-      "train/**",
-      "models/**",
-      "program_autorobobench.md"
-    ],
-    "immutable_globs": [
-      "tasks/robocasa_long_horizon/eval.py",
-      "tasks/robocasa_long_horizon/setup.py",
-      "tasks/robocasa_long_horizon/task.json",
-      "data/make_robocasa5.py",
-      "data/download_robocasa.py",
-      "data/autorobobench/robocasa_long_horizon_manifest.json",
-      "data/autorobobench/robocasa_long_horizon_splits.json",
-      "configs/autorobobench_v0.json"
-    ],
-    "notes": "Single-task long-horizon RoboCasa manipulation track for PickPlaceCounterToMicrowave."
-  },
-  "train_contract": {
-    "single_model": true,
-    "train_tasks": 1,
-    "eval_tasks": 1,
-    "target_task": "PickPlaceCounterToMicrowave",
-    "sequential_multi_stage_tasks": true,
-    "test_time_demo_access": false
-  },
-  "policy_interface": {
-    "load_policy": "load_policy(checkpoint: str, device: str) -> policy",
-    "act": "act(policy, obs: dict, task: dict) -> np.ndarray[action_horizon, action_dim]",
-    "commit_steps": "optional commit_steps(policy, task: dict, action_chunk: np.ndarray, default_commit_steps: int) -> int"
-  },
-  "default_train": {
-    "train_episodes_per_task": 80,
-    "val_episodes_per_task": 10,
-    "chunk_horizon": 16,
-    "frame_stride": 1,
-    "steps": 800,
-    "batch_size": 128,
-    "width": 256,
-    "dropout": 0.03,
-    "progress_scale": 750,
-    "eval_commit_steps": 8
+    "score_weights": {
+      "hidden_final_success": 0.55,
+      "improvement_auc_over_budget": 0.1,
+      "reproducibility_integrity": 0.1,
+      "subgoal_progress": 0.25
+    },
+    "starter_metric": 0.05
   },
   "default_eval": {
+    "commit_steps": 8,
     "eval_episodes_per_task": 10,
-    "max_steps": 750,
-    "commit_steps": 8
+    "max_steps": 750
   },
+  "default_train": {
+    "batch_size": 128,
+    "chunk_horizon": 16,
+    "dropout": 0.03,
+    "eval_commit_steps": 8,
+    "frame_stride": 1,
+    "progress_scale": 750,
+    "steps": 800,
+    "train_episodes_per_task": 80,
+    "val_episodes_per_task": 10,
+    "width": 256
+  },
+  "eval": "tasks/robocasa_long_horizon/eval.py",
+  "id": "robocasa_long_horizon",
+  "inference": "tasks/robocasa_long_horizon/inference.py",
+  "manifest": "data/autorobobench/robocasa_long_horizon_manifest.json",
   "metrics": {
     "primary": "hidden_final_success",
     "secondary": [
@@ -84,5 +61,26 @@
       "improvement_auc_over_budget",
       "reproducibility_integrity"
     ]
-  }
+  },
+  "name": "Long-Horizon Pick-Place-to-Microwave RoboCasa",
+  "policy_interface": {
+    "act": "act(policy, obs: dict, task: dict) -> np.ndarray[action_horizon, action_dim]",
+    "commit_steps": "optional commit_steps(policy, task: dict, action_chunk: np.ndarray, default_commit_steps: int) -> int",
+    "load_policy": "load_policy(checkpoint: str, device: str) -> policy"
+  },
+  "reference_metric": 0.55,
+  "setup": "tasks/robocasa_long_horizon/setup.py",
+  "split": "data/autorobobench/robocasa_long_horizon_splits.json",
+  "starter_metric": 0.05,
+  "train": "tasks/robocasa_long_horizon/train.py",
+  "train_contract": {
+    "eval_tasks": 1,
+    "sequential_multi_stage_tasks": true,
+    "single_model": true,
+    "target_task": "PickPlaceCounterToMicrowave",
+    "test_time_demo_access": false,
+    "train_tasks": 1
+  },
+  "version": "v0",
+  "visualize": "tasks/robocasa_long_horizon/visualize.py"
 }

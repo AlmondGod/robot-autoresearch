@@ -27,3 +27,12 @@ python3 tasks/robocasa_long_horizon/eval.py \
   --out runs/autorobobench/robocasa_long_horizon/<run>/eval_10_per_task.json \
   --device cuda
 ```
+
+## Visualize
+
+Summarize eval/training outputs under `<run>/visualize/`. Add `--render` to also save eval videos.
+
+```bash
+python3 tasks/robocasa_long_horizon/visualize.py \
+  --run-dir runs/autorobobench/robocasa_long_horizon/<run>
+```

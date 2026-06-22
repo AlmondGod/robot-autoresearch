@@ -30,3 +30,12 @@ python3 tasks/video_policy_transfer/eval.py \
   --out runs/autorobobench/video_policy_transfer/<run>/eval.json \
   --device cuda
 ```
+
+## Visualize
+
+Summarize eval/training outputs under `<run>/visualize/`. Add `--render` to also save eval videos.
+
+```bash
+python3 tasks/video_policy_transfer/visualize.py \
+  --run-dir runs/autorobobench/video_policy_transfer/<run>
+```

@@ -38,3 +38,12 @@ python3 tasks/robocasa_world_model_posttraining/eval_parallel.py \
   --eval-episodes-per-task 10 \
   --device cuda
 ```
+
+## Visualize
+
+Summarize world-model posttraining objective, anchor losses, and real eval success under `<run>/visualize/`.
+
+```bash
+python3 tasks/robocasa_world_model_posttraining/visualize.py \
+  --run-dir runs/autorobobench/robocasa_world_model_posttraining/<run>
+```

@@ -1,6 +1,6 @@
-# AutoroboBench Agent Instructions
+# AutoRoboBench Agent Instructions
 
-You are running an AutoroboBench RoboCasa research loop.
+You are running an AutoRoboBench RoboCasa research loop.
 
 Goal:
 
@@ -12,43 +12,23 @@ Primary score comes from evaluator reruns, not self-reported metrics.
 
 ## Rules
 
-- Do not edit files matched by the active track's `immutable_globs` in
-  `configs/autorobobench_v0.json`.
+- Read the active task's `task.json` and `INSTRUCTIONS.md` first.
+- Do not edit files matched by the active track's `immutable_globs`.
 - Do not read hidden eval files, canary files, or answer files.
 - Do not use network access unless the active track explicitly allows fixed
   external-data corpora.
-- Keep an experiment ledger with change, commit, budget, metrics, decision, and
-  notes.
+- Keep experiment outputs under `runs/`.
 - Commit only accepted improvements.
 
-## Tracks
+## Benchmark Metadata
 
-### RoboCasa BC-5
-
-Improve the policy on the five seed RoboCasa tasks.
-
-Executable files:
-
-- split: `data/autorobobench/robocasa_bc5_splits.json`
-- setup: `tasks/robocasa_bc5/setup.py`
-- train: `tasks/robocasa_bc5/train.py`
-- inference: `tasks/robocasa_bc5/inference.py`
-- eval: `tasks/robocasa_bc5/eval.py`
-
-### Long-Horizon RoboCasa
-
-Improve compositional manipulation and recovery on the sequential seed tasks.
-
-### Video Data to Policy Transfer
-
-Use scarce paired-action demos plus action-free RoboCasa videos to improve the
-closed-loop policy.
-
-## Smoke Test
+Use `benchmark.json` for suite membership and `python setup.py` for
+measurement:
 
 ```bash
-python -m autorobobench.cli describe --config configs/autorobobench_v0.json
-python -m autorobobench.cli score \
-  --config configs/autorobobench_v0.json \
-  --results examples/autorobobench_v0_results.json
+python setup.py --describe-benchmark --suite autorobobench_v0
+python setup.py --score-results path/to/results.json --suite autorobobench_v0
 ```
+
+Generated manifests, splits, video pools, policy registries, and eval metadata
+are written under `data/` by `python setup.py`.

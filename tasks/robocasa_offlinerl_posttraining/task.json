@@ -1,44 +1,45 @@
 {
-  "id": "robocasa_offlinerl_posttraining",
-  "name": "RoboCasa Offline-RL Posttraining",
-  "version": "v0",
-  "setup": "tasks/robocasa_offlinerl_posttraining/setup.py",
-  "train": "tasks/robocasa_offlinerl_posttraining/train.py",
-  "inference": "tasks/robocasa_offlinerl_posttraining/inference.py",
+  "default_eval": {
+    "commit_steps": 8,
+    "eval_episodes_per_task": 10,
+    "max_steps": 750
+  },
   "eval": "tasks/robocasa_offlinerl_posttraining/eval.py",
+  "id": "robocasa_offlinerl_posttraining",
+  "inference": "tasks/robocasa_offlinerl_posttraining/inference.py",
   "manifest": "data/autorobobench/robocasa_long_horizon_manifest.json",
+  "metrics": {
+    "higher_is_better": true,
+    "primary": "offlinerl_final_success",
+    "secondary": [
+      "success_rate"
+    ]
+  },
+  "name": "RoboCasa Offline-RL Posttraining",
+  "policy_interface": {
+    "act": "act(policy, obs: dict, task: dict) -> np.ndarray[action_horizon, action_dim]",
+    "commit_steps": "optional commit_steps(policy, task: dict, action_chunk: np.ndarray, default_commit_steps: int) -> int",
+    "load_policy": "load_policy(checkpoint: str, device: str) -> policy"
+  },
+  "reference_metric": 0.7,
+  "setup": "tasks/robocasa_offlinerl_posttraining/setup.py",
   "split": "data/autorobobench/robocasa_long_horizon_splits.json",
   "starter_metric": 0.1,
-  "reference_metric": 0.7,
+  "train": "tasks/robocasa_offlinerl_posttraining/train.py",
   "train_contract": {
-    "single_model": true,
-    "train_tasks": 1,
-    "eval_tasks": 1,
-    "target_task": "PickPlaceCounterToMicrowave",
     "base_policy": "robocasa_long_horizon temporal chunk BC",
-    "test_time_demo_access": false,
-    "offline_experience": true,
+    "eval_tasks": 1,
     "experience_sources": [
       "demonstrations",
       "failed_rollouts",
       "corrections"
-    ]
-  },
-  "policy_interface": {
-    "load_policy": "load_policy(checkpoint: str, device: str) -> policy",
-    "act": "act(policy, obs: dict, task: dict) -> np.ndarray[action_horizon, action_dim]",
-    "commit_steps": "optional commit_steps(policy, task: dict, action_chunk: np.ndarray, default_commit_steps: int) -> int"
-  },
-  "default_eval": {
-    "eval_episodes_per_task": 10,
-    "max_steps": 750,
-    "commit_steps": 8
-  },
-  "metrics": {
-    "primary": "offlinerl_final_success",
-    "secondary": [
-      "success_rate"
     ],
-    "higher_is_better": true
-  }
+    "offline_experience": true,
+    "single_model": true,
+    "target_task": "PickPlaceCounterToMicrowave",
+    "test_time_demo_access": false,
+    "train_tasks": 1
+  },
+  "version": "v0",
+  "visualize": "tasks/robocasa_offlinerl_posttraining/visualize.py"
 }

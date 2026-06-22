@@ -1,45 +1,22 @@
 # robot-autoresearch
 
-Compact AutoroboBench harness for RoboCasa robot-learning research loops.
+Compact AutoRoboBench harness for RoboCasa robot-learning research loops.
 
-The repo is now trimmed to the pieces needed to run and score the current
-RoboCasa benchmark profile:
+The source tree is intentionally small:
 
-- benchmark CLI and scoring utilities in `autorobobench/`
-- RoboCasa task packages in `tasks/`
-- frozen public split/data metadata in `data/autorobobench/` and
-  `data/robocasa5/manifest.json`
-- shared RoboCasa dataset/runtime helpers in `data/` and `autorobobench/`
-- retained policy/training code in `models/` and `train/`
-- one-shot benchmark setup and verification in `setup.py`
+- `benchmark.json`: benchmark suites, tracks, weights, metrics, and task specs
+- `setup.py`: universal installer/verifier, generated metadata writer, scorer, and hasher
+- `tasks/`: task-owned setup, train, inference, eval, visualize, model, and instruction files
+- `data/`: local generated benchmark metadata plus shipped pretrained policy artifacts
+- `docs/`: task descriptions and baseline notes
 
-Old LIBERO, DROID, OSCAR, learned-world-model evaluator, scratch research, and
-generated run artifacts have been removed.
+`configs/`, `examples/`, repo-level `models/`, repo-level `train/`, and the
+`autorobobench` Python package were removed. Task implementations own their
+training/model code directly.
 
-## Tracks
+## Install
 
-`configs/autorobobench_v0.json` defines the executable profile:
-
-| Track | Package | Public data |
-| --- | --- | --- |
-| RoboCasa BC-5 | `tasks/robocasa_bc5/` | `data/autorobobench/robocasa_bc5_splits.json` |
-| Long-Horizon Microwave | `tasks/robocasa_long_horizon/` | `data/autorobobench/robocasa_long_horizon_manifest.json` and `data/autorobobench/robocasa_long_horizon_splits.json` |
-| Video Data to Policy Transfer | `tasks/video_policy_transfer/` | `data/autorobobench/video_policy_transfer_splits.json` and `data/autorobobench/video_policy_transfer_video_pool.json` |
-| RoboCasa World Model Policy Correlation | `tasks/robocasa_world_model/` | `data/autorobobench/robocasa_world_model_policy_set.json` |
-| RoboCasa Choose Measuring Cup Language | `tasks/robocasa_choose_measuring_cup_language/` | `data/autorobobench/robocasa_choose_measuring_cup_language_splits.json` |
-
-Additional executable task packages include:
-
-- `tasks/robocasa_visual_world_model/`
-- `tasks/robocasa_world_model_posttraining/`
-- `tasks/robocasa_offlinerl_posttraining/`
-- `tasks/robocasa_faucet_peak/`
-- `tasks/robocasa_stand_mixer_peak/`
-
-## Setup
-
-From a fresh checkout, install the benchmark package and RoboCasa runtime
-dependencies:
+From a fresh checkout:
 
 ```bash
 git clone <repo-url> robot-autoresearch
@@ -48,59 +25,80 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 pip install -e ".[robocasa,plot]"
-```
-
-The task runners use the local `third_party/robocasa` and `third_party/robosuite`
-checkouts when present. If they are absent, install equivalent RoboCasa and
-robosuite packages before running simulator evaluation.
-
-Run the universal setup check:
-
-```bash
 python setup.py
 ```
 
-This validates Python/package availability, JSON metadata, benchmark configs,
-and metadata-only task setup. It does not require the full RoboCasa datasets.
+`python setup.py` writes generated JSON metadata under `data/`, validates the
+benchmark spec, checks imports, and runs metadata-only task setup. It does not
+require the full RoboCasa datasets.
 
-To download the RoboCasa tasks referenced by the checked-in manifests, run:
+To download referenced RoboCasa tasks:
 
 ```bash
 python setup.py --download-robocasa --yes
 ```
 
-If the datasets are already mounted or synced into the RoboCasa dataset tree,
-skip the download and verify the local files instead:
+To verify mounted or synced datasets:
 
 ```bash
 python setup.py --verify
 ```
 
-Use `--rebuild-bc5-manifest` only when the local RoboCasa registry or dataset
-paths changed:
+## Benchmark Commands
+
+Inspect the main suite:
 
 ```bash
-python setup.py --rebuild-bc5-manifest --verify
+python setup.py --describe-benchmark --suite autorobobench_v0
 ```
 
-The universal setup delegates to each task’s `tasks/<task>/setup.py`, so those
-per-task scripts remain available for narrower checks.
+Score a result file:
+
+```bash
+python setup.py --score-results path/to/results.json --suite autorobobench_v0
+```
+
+Hash immutable benchmark files:
+
+```bash
+python setup.py --hash-manifest --suite autorobobench_v0 --out runs/autorobobench/v0_hashes.json
+```
+
+Additional suite keys are `visual_world_model_v0` and
+`world_model_posttraining_v0`.
+
+## Tracks
+
+The active task packages are:
+
+| Track | Package | Main RoboCasa task/data |
+| --- | --- | --- |
+| RoboCasa BC-5 | `tasks/robocasa_bc5/` | `OpenCabinet`, `CloseDrawer`, `CloseFridge`, `TurnOffStove`, `PickPlaceCounterToCabinet` |
+| Long-Horizon Microwave | `tasks/robocasa_long_horizon/` | `PickPlaceCounterToMicrowave` |
+| Video Data to Policy Transfer | `tasks/video_policy_transfer/` | BC-5 demos plus RGB-only video pool |
+| RoboCasa World Model | `tasks/robocasa_world_model/` | BC-5 transition and policy-ranking world model |
+| Choose Measuring Cup Language | `tasks/robocasa_choose_measuring_cup_language/` | measuring-cup language variants |
+| Visual World Model | `tasks/robocasa_visual_world_model/` | BC-5 next-frame prediction |
+| World-Model Posttraining | `tasks/robocasa_world_model_posttraining/` | `PickPlaceCounterToMicrowave` policy improvement |
+| Offline-RL Posttraining | `tasks/robocasa_offlinerl_posttraining/` | `PickPlaceCounterToMicrowave` policy improvement |
+| Faucet Peak | `tasks/robocasa_faucet_peak/` | `TurnOnSinkFaucet` |
+| Stand Mixer Peak | `tasks/robocasa_stand_mixer_peak/` | `PickPlaceCounterToStandMixer` |
+
+Each task owns its `setup.py`, `train.py`, `inference.py`, `eval.py`,
+`visualize.py`, `task.json`, and `INSTRUCTIONS.md`. Visualizers write compact
+JSON/SVG summaries, and optional render artifacts where supported, under
+`runs/autorobobench/<task>/<run>/visualize/`.
+
+## Local Outputs
+
+`runs/` is local-only and recreated by training/eval commands. Generated JSON
+metadata in `data/` is also local-only; `setup.py` recreates it from embedded
+benchmark metadata. Shipped policy checkpoint artifacts live under
+`data/autorobobench/pretrained_policies/`.
 
 ## Smoke Checks
 
-Inspect and score the benchmark contract:
-
-```bash
-python -m autorobobench.cli describe --config configs/autorobobench_v0.json
-python -m autorobobench.cli score \
-  --config configs/autorobobench_v0.json \
-  --results examples/autorobobench_v0_results.json
-python -m autorobobench.cli hash-manifest \
-  --config configs/autorobobench_v0.json \
-  --out runs/autorobobench/v0_immutable_hashes.json
-```
-
-Run a tiny BC-5 training/eval pass:
+Tiny BC-5 train/eval:
 
 ```bash
 python tasks/robocasa_bc5/setup.py --verify
@@ -117,14 +115,14 @@ python tasks/robocasa_bc5/eval.py \
   --eval-episodes-per-task 1
 ```
 
-Run the long-horizon wrapper:
+Long-horizon wrapper:
 
 ```bash
 python tasks/robocasa_long_horizon/setup.py --verify
 python tasks/robocasa_long_horizon/train.py --steps 200
 ```
 
-Run the scarce-action video-transfer wrapper:
+Video-transfer wrapper:
 
 ```bash
 python tasks/video_policy_transfer/setup.py --verify

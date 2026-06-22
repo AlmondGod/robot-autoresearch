@@ -16,10 +16,46 @@ if str(ROOT) in sys.path:
     sys.path.remove(str(ROOT))
 sys.path.insert(0, str(ROOT))
 
-from autorobobench.robocasa_runtime import ensure_robocasa_runtime
-from models.robocasa_sequence_flow import RoboCasaTemporalChunkBC
-from train.common import device_from_arg
-from train.train_autorobobench_robocasa_bc5 import (
+def ensure_robocasa_runtime() -> None:
+    import json as _json
+    import os as _os
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    repo = _Path(__file__).resolve().parents[2]
+    for rel in ("third_party/robocasa", "third_party/robosuite", "."):
+        path = str((repo / rel).resolve())
+        if path not in _sys.path:
+            _sys.path.insert(0, path)
+    _os.environ.setdefault("PYTHONPATH", _os.pathsep.join(_sys.path))
+    try:
+        import lerobot.datasets.utils as _utils
+    except ModuleNotFoundError:
+        return
+    if hasattr(_utils, "write_info"):
+        return
+
+    def write_info(info: dict, root: str | _Path) -> None:
+        root_path = _Path(root)
+        path = root_path if root_path.name == "info.json" else root_path / "info.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_json.dumps(info, indent=2, sort_keys=True) + "\n")
+
+    _utils.write_info = write_info
+
+from tasks.robocasa_bc5.model import RoboCasaTemporalChunkBC
+def device_from_arg(name: str):
+    import torch
+
+    if name == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
+
+from tasks.robocasa_bc5.train import (
     TemporalChunkData,
     _augment,
     _batch,

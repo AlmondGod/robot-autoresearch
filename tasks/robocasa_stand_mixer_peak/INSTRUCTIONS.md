@@ -31,3 +31,12 @@ python3 tasks/robocasa_stand_mixer_peak/eval.py \
   --eval-episodes-per-task 10 \
   --device cuda
 ```
+
+## Visualize
+
+Summarize eval/training outputs under `<run>/visualize/`. Add `--render` to also save eval videos.
+
+```bash
+python3 tasks/robocasa_stand_mixer_peak/visualize.py \
+  --run-dir runs/autorobobench/robocasa_stand_mixer_peak/<run>
+```

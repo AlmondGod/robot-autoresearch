@@ -33,7 +33,17 @@ from tasks.robocasa_world_model.data import (
 from tasks.robocasa_world_model.inverse_dynamics import load_inverse_dynamics
 from tasks.robocasa_world_model.model import RoboCasaWorldModel
 from tasks.robocasa_world_model.video_repr import load_video_encoder
-from train.common import device_from_arg
+def device_from_arg(name: str):
+    import torch
+
+    if name == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
+
 
 
 def main() -> None:

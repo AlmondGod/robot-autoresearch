@@ -30,3 +30,12 @@ python3 tasks/robocasa_world_model/eval.py \
   --out runs/autorobobench/robocasa_world_model/<run>/eval_correlation.json \
   --device cuda
 ```
+
+## Visualize
+
+Summarize world-model policy ranking, calibration, transition metrics, and real-vs-predicted policy scores under `<run>/visualize/`.
+
+```bash
+python3 tasks/robocasa_world_model/visualize.py \
+  --run-dir runs/autorobobench/robocasa_world_model/<run>
+```

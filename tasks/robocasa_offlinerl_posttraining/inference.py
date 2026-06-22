@@ -6,8 +6,18 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from models.robocasa_sequence_flow import RoboCasaTemporalChunkBC
-from train.common import device_from_arg
+from tasks.robocasa_bc5.model import RoboCasaTemporalChunkBC
+def device_from_arg(name: str):
+    import torch
+
+    if name == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
+
 
 
 @dataclass

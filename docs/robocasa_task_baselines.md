@@ -29,7 +29,7 @@ Current repo state after the single-task policy work:
 | `robocasa_bc5` | `OpenDrawer`, `CloseDrawer`, `CloseFridge`, `TurnOffStove`, `PickPlaceCounterToCabinet` | `data/robocasa5/manifest.json` | `data/autorobobench/robocasa_bc5_splits.json` |
 | `robocasa_world_model` | same as `robocasa_bc5` | `data/robocasa5/manifest.json` | `data/autorobobench/robocasa_bc5_splits.json` |
 | `robocasa_visual_world_model` | same as `robocasa_bc5` | `data/robocasa5/manifest.json` | `data/autorobobench/robocasa_bc5_splits.json` |
-| `robocasa_wm_policy_improvement` | defaults to same as `robocasa_bc5`; recent focused run used `TurnOnSinkFaucet` | `data/robocasa5/manifest.json` by default | `data/autorobobench/robocasa_bc5_splits.json` by default |
+| `robocasa_wm_policy_improvement` | `TurnOnSinkFaucet` | `data/autorobobench/robocasa_faucet_peak_manifest.json` | `data/autorobobench/robocasa_faucet_peak_splits.json` |
 | `robocasa_progress_predictor` | same as `robocasa_bc5` | `data/robocasa5/manifest.json` | `data/autorobobench/robocasa_bc5_splits.json` |
 | `robocasa_faucet_peak` | `TurnOnSinkFaucet` | `data/autorobobench/robocasa_faucet_peak_manifest.json` | `data/autorobobench/robocasa_faucet_peak_splits.json` |
 | `robocasa_stand_mixer_peak` | `PickPlaceCounterToStandMixer` | `data/autorobobench/robocasa_stand_mixer_peak_manifest.json` | `data/autorobobench/robocasa_stand_mixer_peak_splits.json` |

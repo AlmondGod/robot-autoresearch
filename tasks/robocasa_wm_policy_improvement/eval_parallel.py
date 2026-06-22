@@ -19,9 +19,9 @@ def main() -> None:
     _default("--max-steps", "750")
     _default("--commit-steps", "8")
 
-    from tasks.robocasa_bc5.eval import main as robocasa_eval_main
+    from tasks.robocasa_bc5.eval_parallel import main as robocasa_eval_parallel_main
 
-    robocasa_eval_main()
+    robocasa_eval_parallel_main()
 
 
 def _default(flag: str, value: str) -> None:

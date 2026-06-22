@@ -294,15 +294,15 @@ python3 tasks/robocasa_visual_world_model/eval.py \
 - Supported policy modes: temporal chunk BC, temporal chunk flow, sequence flow.
 - Unsupported for v0: trajectory banks, history policies, frozen VLM feature
   cache policies.
-- Current checked-in WM-compatible base:
+- Default task: `TurnOnSinkFaucet` via
+  `data/autorobobench/robocasa_faucet_peak_manifest.json` and
+  `data/autorobobench/robocasa_faucet_peak_splits.json`.
+- Default checked-in WM-compatible base:
   `data/autorobobench/pretrained_policies/robocasa_faucet_direct_bc_all_data_5min_seed0.pt`.
 - Train:
 
 ```bash
 python3 tasks/robocasa_wm_policy_improvement/train.py \
-  --manifest <manifest.json> \
-  --split <split.json> \
-  --policy-checkpoint <base_policy.pt> \
   --world-model-checkpoint <world_model.pt> \
   --out-dir runs/autorobobench/robocasa_wm_policy_improvement/<run> \
   --max-train-seconds 300 \
@@ -312,14 +312,10 @@ python3 tasks/robocasa_wm_policy_improvement/train.py \
 - Eval:
 
 ```bash
-python3 tasks/robocasa_bc5/eval_parallel.py \
-  --manifest <manifest.json> \
-  --split <split.json> \
-  --inference tasks.robocasa_bc5.inference \
+python3 tasks/robocasa_wm_policy_improvement/eval_parallel.py \
   --checkpoint runs/autorobobench/robocasa_wm_policy_improvement/<run>/policy_best.pt \
   --out runs/autorobobench/robocasa_wm_policy_improvement/<run>/eval.json \
   --eval-episodes-per-task 10 \
-  --workers 5 \
   --device cuda
 ```
 

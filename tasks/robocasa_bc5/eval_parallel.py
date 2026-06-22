@@ -47,7 +47,7 @@ def main() -> None:
     parser.add_argument("--render-height", type=int, default=512)
     parser.add_argument("--fps", type=int, default=20)
     parser.add_argument("--device", default="auto")
-    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("AUTOROBOBENCH_EVAL_WORKERS", "28")))
     parser.add_argument("--worker-timeout-seconds", type=float, default=0.0)
     args = parser.parse_args()
 
@@ -120,13 +120,16 @@ def main() -> None:
         with shard_log.open("w") as log:
             log.write(f"cmd: {' '.join(cmd)}\n")
         log_handle = shard_log.open("a")
+        worker_env = os.environ.copy()
+        for key in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+            worker_env.setdefault(key, "1")
         proc = subprocess.Popen(
             cmd,
             cwd=ROOT,
             stdout=log_handle,
             stderr=subprocess.STDOUT,
             text=True,
-            env=os.environ.copy(),
+            env=worker_env,
         )
         procs.append(
             WorkerProc(

@@ -33,13 +33,18 @@ from train.train_autorobobench_robocasa_bc5 import (
 
 SUPPORTED_MODES = {"chunk", "sequence_flow"}
 SUPPORTED_KINDS = {"bc", "flow", "sequence_flow"}
+DEFAULT_MANIFEST = "data/autorobobench/robocasa_faucet_peak_manifest.json"
+DEFAULT_SPLIT = "data/autorobobench/robocasa_faucet_peak_splits.json"
+DEFAULT_POLICY_CHECKPOINT = (
+    "data/autorobobench/pretrained_policies/robocasa_faucet_direct_bc_all_data_5min_seed0.pt"
+)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Improve a RoboCasa BC policy with a frozen world model.")
-    parser.add_argument("--manifest", default="data/robocasa5/manifest.json")
-    parser.add_argument("--split", default="data/autorobobench/robocasa_bc5_splits.json")
-    parser.add_argument("--policy-checkpoint", required=True)
+    parser.add_argument("--manifest", default=DEFAULT_MANIFEST)
+    parser.add_argument("--split", default=DEFAULT_SPLIT)
+    parser.add_argument("--policy-checkpoint", default=DEFAULT_POLICY_CHECKPOINT)
     parser.add_argument("--world-model-checkpoint", required=True)
     parser.add_argument("--out-dir", default="runs/autorobobench/robocasa_wm_policy_improvement/default")
     parser.add_argument("--train-episodes-per-task", type=int, default=4)

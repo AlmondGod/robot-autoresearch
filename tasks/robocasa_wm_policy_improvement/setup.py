@@ -4,6 +4,12 @@ import importlib.util
 import json
 from pathlib import Path
 
+DEFAULT_MANIFEST = Path("data/autorobobench/robocasa_faucet_peak_manifest.json")
+DEFAULT_SPLIT = Path("data/autorobobench/robocasa_faucet_peak_splits.json")
+DEFAULT_POLICY_CHECKPOINT = Path(
+    "data/autorobobench/pretrained_policies/robocasa_faucet_direct_bc_all_data_5min_seed0.pt"
+)
+
 
 def main() -> None:
     checks = {
@@ -12,8 +18,9 @@ def main() -> None:
         "robocasa_bc5_inference_available": importlib.util.find_spec("tasks.robocasa_bc5.inference") is not None,
         "world_model_available": importlib.util.find_spec("tasks.robocasa_world_model.model") is not None,
         "visual_world_model_available": importlib.util.find_spec("tasks.robocasa_visual_world_model.model") is not None,
-        "manifest_exists": Path("data/robocasa5/manifest.json").exists(),
-        "split_exists": Path("data/autorobobench/robocasa_bc5_splits.json").exists(),
+        "manifest_exists": DEFAULT_MANIFEST.exists(),
+        "split_exists": DEFAULT_SPLIT.exists(),
+        "default_policy_checkpoint_exists": DEFAULT_POLICY_CHECKPOINT.exists(),
     }
     print(json.dumps(checks, indent=2, sort_keys=True))
     missing = [key for key, ok in checks.items() if key != "task" and not ok]
@@ -23,4 +30,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

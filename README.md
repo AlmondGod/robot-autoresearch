@@ -25,6 +25,8 @@ robotics into deployment:
 - high reliability on repetitive tasks
 - small, installable, single-GPU experiments with fast feedback
 
+![World model autoresearch progress](docs/assets/world_model_autoresearch_progress.png)
+
 This repository is the research/reference version of the benchmark. It contains
 the current best-known RoboCasa task implementations and baseline results. A
 separate Docker harness can be built from this repo when the goal is clean
